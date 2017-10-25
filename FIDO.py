@@ -297,146 +297,162 @@ def update_plot():
     global fluxRopeToggle, CMEshapeToggle
     fluxRopeToggle = fluxRopeToggleVAR.get()
     CMEshapeToggle = CMEshapeToggleVAR.get()
-    CMElat = float(e1.get())
-    CMElon = float(e2.get())
-    CMEtilt = float(e3.get())
-    CMEAW   = float(e3b.get())
-    if CMEshapeToggle==0:
-        CMESRA  = float(e4.get())
-        CMESRB  = float(e5.get())
-    global alphaGCS, kappa
-    if CMEshapeToggle==1:
-        kappa   = float(eGCS.get())
-        alphaGCS = CMEAW *dtor - np.arcsin(kappa)
-        #b_unit = (1. - kappa)/(1+np.sin(alphaGCS))
-        #p_unit = np.sin(alphaGCS) * (1. - kappa)/(1+np.sin(alphaGCS))
-        #torAR = np.arctan(p_unit/(1-kappa**2) + kappa*b_unit/np.sqrt(1-kappa**2))
-        #print alphaGCS*radeg, CMEAW, torAR * radeg
-        if alphaGCS < 0:
-            print 'alpha less than 0, increase AW or decrease kappa'
-            CMElat = 99.
-        #print alphaGCS
-    if fluxRopeToggle==0:
-        CMEB0   = float(e6.get())
-        CMEH	= float(e7.get())
-    CMEvr   = float(e8.get())
-    tshift  = float(e9.get())
-    global FFlat, FFlon0
-    FFlat   = float(eR1.get())
-    FFlon0  = float(eR2.get()) 
-    global cTau, cC1, cM, cN
-    if fluxRopeToggle==1:
-        CMEB0     = float(ec1.get()) 
-        cM      = float(ec2.get())
-        cN      = float(ec3.get())
-        cTau    = float(ec4.get())
-        cC1     = float(ec5.get())
-    # define as globals so can use to calculate score
-    global obsBx, obsBy, obsBz, obsB, tARR
-    obsBx, obsBy, obsBz, tARR = update_insitu()
-    obsBx, obsBy, obsBz = np.array(obsBx), np.array(obsBy), np.array(obsBz)
-    tARR = np.array(tARR) 
-    tshift = CMEstart + tshift/24.
-    tARR = tARR/24.
+    plotCME = True
+    try:
+        CMElat = float(e1.get())
+        CMElon = float(e2.get())
+    
+        CMEtilt = float(e3.get())
+        CMEAW   = float(e3b.get())
+        if CMEshapeToggle==0:
+            CMESRA  = float(e4.get())
+            CMESRB  = float(e5.get())
+        global alphaGCS, kappa
+        if CMEshapeToggle==1:
+            kappa   = float(eGCS.get())
+            alphaGCS = CMEAW *dtor - np.arcsin(kappa)
+            #b_unit = (1. - kappa)/(1+np.sin(alphaGCS))
+            #p_unit = np.sin(alphaGCS) * (1. - kappa)/(1+np.sin(alphaGCS))
+            #torAR = np.arctan(p_unit/(1-kappa**2) + kappa*b_unit/np.sqrt(1-kappa**2))
+            #print alphaGCS*radeg, CMEAW, torAR * radeg
+            if alphaGCS < 0:
+                print 'alpha less than 0, increase AW or decrease kappa'
+                CMElat = 99.
+            #print alphaGCS
+        if fluxRopeToggle==0:
+            CMEB0   = float(e6.get())
+            CMEH	= float(e7.get())
+        CMEvr   = float(e8.get())
+        tshift  = float(e9.get())
+        global FFlat, FFlon0
+        FFlat   = float(eR1.get())
+        FFlon0  = float(eR2.get()) 
+        global cTau, cC1, cM, cN
+        if fluxRopeToggle==1:
+            CMEB0     = float(ec1.get()) 
+            cM      = float(ec2.get())
+            cN      = float(ec3.get())
+            cTau    = float(ec4.get())
+            cC1     = float(ec5.get())
+    except:
+        plotCME = False
+        print 'Error in CME params'
+        
+    if plotCME==True:
+        # define as globals so can use to calculate score
+        global obsBx, obsBy, obsBz, obsB, tARR
+        obsBx, obsBy, obsBz, tARR = update_insitu()
+        obsBx, obsBy, obsBz = np.array(obsBx), np.array(obsBy), np.array(obsBz)
+        tARR = np.array(tARR) 
+        tshift = CMEstart + tshift/24.
+        tARR = tARR/24.
 
-	# find the beginning and end of the actual magnetic cloud portion of the data 
-	# check if beginning and end are equal to 0
-    if np.sum(np.abs(obsBx)) > 0.:
-        if obsBx[0] == 0:
-            MCidxi = np.min(np.where(np.abs(obsBx) > 0))
-			# trim off excess zeroes since finding starting point of CME difficult
-            idx1 = np.max([0, MCidxi])
-            obsBx = obsBx[idx1:] 
-            obsBy = obsBy[idx1:] 
-            obsBz = obsBz[idx1:] 
-            tARR  = tARR[idx1:]
-            tARR -= tARR[0] # restart the t array at 0
-        if obsBx[-1] == 0:
-            MCidxf = np.max(np.where(np.abs(obsBx) > 0))
-            idx2 = MCidxf
-            if idx2 > len(obsBx) - 1: idx2 = len(obsBx) -1 
-			#print len(obsBx), idx2, MCidxf
-            obsBx = obsBx[:idx2] 
-            obsBy = obsBy[:idx2] 
-            obsBz = obsBz[:idx2] 
-            tARR  = tARR[:idx2]
-    obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
+    	# find the beginning and end of the actual magnetic cloud portion of the data 
+    	# check if beginning and end are equal to 0
+        if np.sum(np.abs(obsBx)) > 0.:
+            if obsBx[0] == 0:
+                MCidxi = np.min(np.where(np.abs(obsBx) > 0))
+    			# trim off excess zeroes since finding starting point of CME difficult
+                idx1 = np.max([0, MCidxi])
+                obsBx = obsBx[idx1:] 
+                obsBy = obsBy[idx1:] 
+                obsBz = obsBz[idx1:] 
+                tARR  = tARR[idx1:]
+                tARR -= tARR[0] # restart the t array at 0
+            if obsBx[-1] == 0:
+                MCidxf = np.max(np.where(np.abs(obsBx) > 0))
+                idx2 = MCidxf
+                if idx2 > len(obsBx) - 1: idx2 = len(obsBx) -1 
+    			#print len(obsBx), idx2, MCidxf
+                obsBx = obsBx[:idx2] 
+                obsBy = obsBy[:idx2] 
+                obsBz = obsBz[:idx2] 
+                tARR  = tARR[:idx2]
+        obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
 
-    # scale the CME to match at midpoint (ignoring B0 with this)
-    avg_FIDO_B = np.mean(obsB[np.where(np.abs(tshift+tARR - CMEmid) < 2./24.)])
-    scale = 1.
-    if autonormVAR.get()==1: scale = avg_obs_B / avg_FIDO_B
-    obsBx *= scale
-    obsBy *= scale
-    obsBz *= scale
-    obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
+        # scale the CME to match at midpoint (ignoring B0 with this)
+        avg_FIDO_B = np.mean(obsB[np.where(np.abs(tshift+tARR - CMEmid) < 2./24.)])
+        scale = 1.
+        if autonormVAR.get()==1: scale = avg_obs_B / avg_FIDO_B
+        obsBx *= scale
+        obsBy *= scale
+        obsBz *= scale
+        obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
 
-    scoreBx, scoreBy, scoreBz = calc_score()
-    print 'initial score', totalscore
+        scoreBx, scoreBy, scoreBz = calc_score()
+        print 'initial score', totalscore
       
     ax2.clear()
     ax3.clear()
     ax4.clear()
     ax5.clear()
     #ax2.plot(d_t, d_Btot, 'k', linewidth=3)
+    # reassign so won't complain when looking for best plot range
+    if plotCME == False:
+        obsB, obsBx, obsBy, obsBz = d_Btot, d_Bx, d_By, d_Bz
     maxBtot = np.max([np.max(d_Btot), np.max(obsB)])
-    ax2.plot([RCstart, RCstart], [0., 1.3*maxBtot], 'k--', linewidth=2)
-    ax2.plot([RCend, RCend], [0., 1.3*maxBtot], 'k--', linewidth=2)
-    if flag_it == False:
-        ax2.plot([TNCstart, TNCstart], [0., 1.3*np.max(maxBtot)], 'b--', linewidth=2)
-        ax2.plot([TNCend, TNCend], [0., 1.3*np.max(maxBtot)], 'b--', linewidth=2)
-        ax2.plot(Wind_t, Wind_B, 'b', linewidth=4)
+    ax2.plot([CMEstart, CMEstart], [0., 1.3*maxBtot], 'k--', linewidth=2)
+    ax2.plot([CMEend, CMEend], [0., 1.3*maxBtot], 'k--', linewidth=2)
+    #if flag_it == False:
+    #    ax2.plot([TNCstart, TNCstart], [0., 1.3*np.max(maxBtot)], 'b--', linewidth=2)
+    #    ax2.plot([TNCend, TNCend], [0., 1.3*np.max(maxBtot)], 'b--', linewidth=2)
+    #    ax2.plot(Wind_t, Wind_B, 'b', linewidth=4)
     ax2.plot(d_tUN, d_Btot, 'k', linewidth=4)
     #print d_tUN
-    ax2.plot(tshift + tARR, obsB, 'r', linewidth=4)
+    if plotCME == True: ax2.plot(tshift + tARR, obsB, 'r', linewidth=4)
     ax2.set_ylabel('B (nT)')
     setp(ax2.get_xticklabels(), visible=False)
 
     minBx = np.abs(np.min([np.min(d_Bx), np.min(-obsBx)]))
     maxBx = np.max([np.max(d_Bx), np.max(-obsBx)])
-    ax3.plot([RCstart, RCstart], [-1.3*minBx, 1.3*maxBx], 'k--', linewidth=2)
-    ax3.plot([RCend, RCend], [-1.3*minBx, 1.3*maxBx], 'k--', linewidth=2)
-    if flag_it == False:
-        ax3.plot([TNCstart, TNCstart], [-1.3*minBx, 1.3*maxBx], 'b--', linewidth=2)
-        ax3.plot([TNCend, TNCend], [-1.3*minBx, 1.3*maxBx], 'b--', linewidth=2)
-        ax3.plot(Wind_t, Wind_Bx, 'b', linewidth=4)
+    ax3.plot([CMEstart, CMEstart], [-1.3*minBx, 1.3*maxBx], 'k--', linewidth=2)
+    ax3.plot([CMEend, CMEend], [-1.3*minBx, 1.3*maxBx], 'k--', linewidth=2)
+    #if flag_it == False:
+    #    ax3.plot([TNCstart, TNCstart], [-1.3*minBx, 1.3*maxBx], 'b--', linewidth=2)
+    #    ax3.plot([TNCend, TNCend], [-1.3*minBx, 1.3*maxBx], 'b--', linewidth=2)
+    #    ax3.plot(Wind_t, Wind_Bx, 'b', linewidth=4)
     ax3.plot(d_tUN, d_Bx, 'k', linewidth=4)
-    ax3.plot(tshift + tARR, -obsBx, 'r', linewidth=4)
-    ax3.annotate('%0.2f'%(scoreBx), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16,
+    if plotCME == True: 
+        ax3.plot(tshift + tARR, -obsBx, 'r', linewidth=4)
+        ax3.annotate('%0.2f'%(scoreBx), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16,
                 horizontalalignment='right', verticalalignment='bottom')    
     ax3.set_ylabel('B$_x$ (nT)')
     setp(ax3.get_xticklabels(), visible=False)
 
     minBy = np.abs(np.min([np.min(d_By), np.min(-obsBy)]))
     maxBy = np.max([np.max(d_By), np.max(-obsBy)])
-    ax4.plot([RCstart, RCstart], [-1.3*minBy, 1.3*maxBy], 'k--', linewidth=2)
-    ax4.plot([RCend, RCend], [-1.3*minBy, 1.3*maxBy], 'k--', linewidth=2)
-    if flag_it == False:
-        ax4.plot([TNCstart, TNCstart], [-1.3*minBy, 1.3*maxBy], 'b--', linewidth=2)
-        ax4.plot([TNCend, TNCend], [-1.3*minBy, 1.3*maxBy], 'b--', linewidth=2)
-        ax4.plot(Wind_t, Wind_By, 'b', linewidth=4)
+    ax4.plot([CMEstart, CMEstart], [-1.3*minBy, 1.3*maxBy], 'k--', linewidth=2)
+    ax4.plot([CMEend, CMEend], [-1.3*minBy, 1.3*maxBy], 'k--', linewidth=2)
+    #if flag_it == False:
+    #    ax4.plot([TNCstart, TNCstart], [-1.3*minBy, 1.3*maxBy], 'b--', linewidth=2)
+     #   ax4.plot([TNCend, TNCend], [-1.3*minBy, 1.3*maxBy], 'b--', linewidth=2)
+    #    ax4.plot(Wind_t, Wind_By, 'b', linewidth=4)
     ax4.plot(d_tUN, d_By, 'k', linewidth=4)
-    ax4.annotate('%0.2f'%(scoreBy), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16,
+    if plotCME == True: 
+            ax4.plot(tshift + tARR, -obsBy, 'r', linewidth=4)
+            ax4.annotate('%0.2f'%(scoreBy), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16,
                 horizontalalignment='right', verticalalignment='bottom')    
     ax4.set_ylabel('B$_y$ (nT)')
-    ax4.plot(tshift + tARR, -obsBy, 'r', linewidth=4)
     setp(ax4.get_xticklabels(), visible=False)
 
     minBz = np.abs(np.min([np.min(d_Bz), np.min(obsBz)]))
     maxBz = np.max([np.max(d_Bz), np.max(obsBz)])
-    ax5.plot([RCstart, RCstart], [-1.3*minBz, 1.3*maxBz], 'k--', linewidth=2)
-    ax5.plot([RCend, RCend], [-1.3*minBz, 1.3*maxBz], 'k--', linewidth=2)
-    if flag_it == False:
-        ax5.plot([TNCstart, TNCstart], [-1.3*minBz, 1.3*maxBz], 'b--', linewidth=2)
-        ax5.plot([TNCend, TNCend], [-1.3*minBz, 1.3*maxBz], 'b--', linewidth=2)
-        ax5.plot(Wind_t, Wind_Bz, 'b', linewidth=4)
+    ax5.plot([CMEstart, CMEstart], [-1.3*minBz, 1.3*maxBz], 'k--', linewidth=2)
+    ax5.plot([CMEend, CMEend], [-1.3*minBz, 1.3*maxBz], 'k--', linewidth=2)
+    #if flag_it == False:
+    #    ax5.plot([TNCstart, TNCstart], [-1.3*minBz, 1.3*maxBz], 'b--', linewidth=2)
+    #    ax5.plot([TNCend, TNCend], [-1.3*minBz, 1.3*maxBz], 'b--', linewidth=2)
+    #    ax5.plot(Wind_t, Wind_Bz, 'b', linewidth=4)
     ax5.plot(d_tUN, d_Bz, 'k', linewidth=4)
-    ax5.annotate('%0.2f'%(scoreBz), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16,
-                horizontalalignment='right', verticalalignment='bottom')    
     ax5.set_ylabel('B$_z$ (nT)')
 
     ax5.set_xlabel('Day of Year')
-    ax5.plot(tshift + tARR, obsBz, 'r', linewidth=4)
+    if plotCME == True: 
+        ax5.plot(tshift + tARR, obsBz, 'r', linewidth=4)
+        ax5.annotate('%0.2f'%(scoreBz), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16,
+                horizontalalignment='right', verticalalignment='bottom')    
+    
+    
     scl = 1.25
     ax2.set_ylim([0,scl*maxBtot])
     ax3.set_ylim([-1.*scl*minBx, scl*maxBx])
@@ -445,7 +461,7 @@ def update_plot():
     ax2.set_xlim([plotstart, plotend])
     ax2.xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
     plt.subplots_adjust(right=0.8, wspace=0.001, hspace=0.25)
-    fig2.suptitle(datestr, fontsize=16)
+    #fig2.suptitle(datestr, fontsize=16)
     plt.tight_layout()
     plt.subplots_adjust(top=0.94)
     plt.gcf().canvas.draw()
@@ -526,6 +542,16 @@ def find_bf():
     #prevkappa   = float(eGCS.get())
     prevC1     = float(ec5.get())
     print prevCMElat, prevCMElon, prevCMEtilt, prevCMEAW, prevCMESRA, prevCMESRB, prevC1
+ 
+    latrange = [prevCMElat-5, prevCMElat+5.]
+    lonrange = [prevCMElon-5., prevCMElon+5.]
+    tiltrange = [prevCMEtilt-10., prevCMEtilt+10.]
+    AWrange  = [prevCMEAW-10., prevCMEAW+10.]
+    Brange = [0.01, 0.99]
+    Arange = [0.4, 1.0]
+    #kapparange = [np.min([myrow2[9]-0.25, 0.01]), myrow2[9]+0.25]
+    # opposite sign of force free H
+    C1range = [0.5, 2.0]
     
     for bf_counter in range(4000):
         global totalscore
@@ -687,6 +713,20 @@ def save_plot():
 	f1.write('%-13s %8.2f \n' % ('FIDO_lon', FFlon0))
 	f1.close()
 
+def get_inputs(inputs):
+    # take a file with unsorted input values and return a dictionary.
+    # variable names have to match their names below
+    possible_vars = ['insitufile', 'Earth_lat', 'Earth_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'CME_shape_model', 'Flux_rope_model', 'Autonormalize', 'Circ_m', 'Circ_n', 'Circ_C1', 'Circ_Tau']
+    
+    # if matches add to dictionary
+    input_values = {}
+    for i in range(len(inputs)):
+        temp = inputs[i]
+        if temp[0][:-1] in possible_vars:
+            input_values[temp[0][:-1]] = temp[1]
+    return input_values
+
+
 random.seed(42)
 
 # Parameters to play with (like string for a cat)
@@ -705,13 +745,12 @@ kmRs  = 1.0e5 / rsun # km (/s) divided by rsun (in cm)
 
 
 # Get the CME number
-global myid
-myid =int(sys.argv[1]) - 1
+if len(sys.argv) < 2: sys.exit("Need an input file")
 
-# open the corresponding CME file
-mynumSTR = str(myid+1)
-if len(mynumSTR) < 2: mynumSTR='0'+mynumSTR
-myfile = 'CME'+mynumSTR+'.txt'
+input_file = sys.argv[1]
+inputs = np.genfromtxt(input_file, dtype=None)
+
+input_values = get_inputs(inputs)
 
 # set up the GUI
 root = Tk()
@@ -762,7 +801,10 @@ e9.grid(column=1, row=6)
 # radio button to choose between torus and GCS
 global CMEshapeToggleVAR
 CMEshapeToggleVAR = IntVar()
-CMEshapeToggleVAR.set(0)
+if 'CME_shape_model' in input_values:
+    if input_values['CME_shape_model'] == 'Torus': CMEshapeToggleVAR.set(0)
+    elif input_values['CME_shape_model'] == 'Torus': CMEshapeToggleVAR.set(1)
+
 Label(root, text='Flux Rope Shape:', bg='gray75').grid(row=7, column=0,columnspan=2)
 Radiobutton(root, text='Torus', variable=CMEshapeToggleVAR, value=0, bg='gray75').grid(column=0,row=8)
 Radiobutton(root, text='GCS', variable=CMEshapeToggleVAR, value=1, bg='gray75').grid(column=1,row=8)
@@ -786,7 +828,9 @@ eGCS.grid(column=1, row=13)
 # radio button to choose between force-free and circular
 global fluxRopeToggleVAR
 fluxRopeToggleVAR = IntVar()
-fluxRopeToggleVAR.set(0)
+if 'Flux_rope_model' in input_values:
+    if input_values['Flux_rope_model'] == 'FF': fluxRopeToggleVAR.set(0)
+    elif input_values['Flux_rope_model'] == 'GCS': fluxRopeToggleVAR.set(1)
 Label(root, text='Flux Rope Model:', bg='gray75').grid(row=0, column=3,columnspan=2)
 Radiobutton(root, text='Force Free', variable=fluxRopeToggleVAR, value=0, bg='gray75').grid(column=3,row=1)
 Radiobutton(root, text='Circular', variable=fluxRopeToggleVAR, value=1, bg='gray75').grid(column=4,row=1)
@@ -794,7 +838,10 @@ Radiobutton(root, text='Circular', variable=fluxRopeToggleVAR, value=1, bg='gray
 # check button for autonormalizing magnitude
 global autonormVAR
 autonormVAR = IntVar()
-autonormVAR.set(1)
+if 'Autonormalize' in input_values:
+    if input_values['Autonormalize'] == 'True': autonormVAR.set(1)
+    elif input_values['Autonormalize'] == 'False': autonormVAR.set(0)
+
 normCheck = Checkbutton(root, text='Auto Normalize', bg='gray75', var=autonormVAR).grid(column=3, row=2)
 
 Label(root, text='Force Free Parameters', bg='gray75').grid(column=3, row=3, columnspan=2)
@@ -842,86 +889,80 @@ quit_button.grid(row=31, column=3)
 
 # preload last variables if file exists
 # Load in CME data
-data = np.genfromtxt(myfile, dtype=None)
-datestr = data[0][1]
-datestr = datestr[:10] + ' ' + datestr[11:]
-print datestr
-CMEtime = data[1][1] # get DOY from the year frac 
-print 'CME time', CMEtime
+#data = np.genfromtxt(myfile, dtype=None)
+#datestr = data[0][1]
+#datestr = datestr[:10] + ' ' + datestr[11:]
+#print datestr
+#CMEtime = data[1][1] # get DOY from the year frac 
+#print 'CME time', CMEtime
 
 # insert values 
-e1.insert(0, data[52][1]) # latitude
-e2.insert(0, data[53][1]) # longitude
-e3.insert(0, data[54][1]) # tilt
-e3b.insert(0, data[55][1]) # AW
+if 'Earth_lat' in input_values:
+    eR1.insert(0, input_values['Earth_lat'])
+if 'Earth_lon' in input_values:
+    eR2.insert(0, input_values['Earth_lat'])
+if 'CME_lat' in input_values:
+    e1.insert(0, input_values['CME_lat']) 
+if 'CME_lon' in input_values:
+    e2.insert(0, input_values['CME_lon'])
+if 'CME_tilt' in input_values:
+    e3.insert(0, input_values['CME_tilt']) 
+if 'CME_AW' in input_values:
+    e3b.insert(0, input_values['CME_AW'])
+if 'CME_Ashape' in input_values:
+    e4.insert(0, input_values['CME_Ashape']) 
+if 'CME_Bshape' in input_values:
+    e5.insert(0, input_values['CME_Bshape'])   
+if 'CME_vr' in input_values:
+    e8.insert(0, input_values['CME_vr'])
+if 'tshift' in input_values:
+    e9.insert(0, input_values['tshift'])
+if 'CME_B0' in input_values:
+    # stick in both for now
+    e6.insert(0, input_values['CME_B0'])
+    ec1.insert(0,input_values['CME_B0']) 
+if 'Circ_m' in input_values:
+    ec2.insert(0,input_values['Circ_m']) 
+if 'Circ_n' in input_values:
+    ec3.insert(0,input_values['Circ_n'])        
+if 'Circ_Tau' in input_values:
+    ec4.insert(0,input_values['Circ_Tau'])     
+if 'Circ_C1' in input_values:
+    ec5.insert(0,input_values['Circ_C1'])  
 
-e4.insert(0, data[56][1])    # A
-e5.insert(0, data[57][1])    # B
-# add alternative for kappa
-
-e8.insert(0, data[49][1])   # vcme
-e6.insert(0, data[62][1])   # B0
-used_pol = data[8][1]
 global CMEH
 CMEH = 1
-if used_pol[1] == '-': CMEH = -1
-e7.insert(0, CMEH) # H
+if 'CME_pol' in input_values:    
+    used_pol = input_values['CME_pol']
+    if used_pol[1] == '-': CMEH = -1
+    e7.insert(0, CMEH) # H
     
-e9.insert(0, 0) # tshift
-eR1.insert(0, data[2][1])  #FIDO lat
-eR2.insert(0, data[50][1])  #FIDO lon
 
-ec1.insert(0,data[62][1])  #B0
-ec2.insert(0,0)         #m
-ec3.insert(0,1)         #n
-ec4.insert(0,1)         #tau
-ec5.insert(0,1)         #C1
-
-
-
-global latrange, lonrange, tiltrange, AWrange, Arange, Brange, B0range, tshiftrange, C1range
-
-latrange = [float(data[52][1])-5, float(data[52][1])+5.]
-lonrange = [float(data[53][1])-5., float(data[53][1])+5.]
-tiltrange = [float(data[54][1])-10., float(data[54][1])+10.]
-# might have dif AW for tor/GCS so pick whatever currently used
-the_AW = float(e3b.get())
-AWrange  = [the_AW-10., the_AW+10.]
-Brange = [0.01, 0.99]
-Arange = [0.4, 1.0]
-#kapparange = [np.min([myrow2[9]-0.25, 0.01]), myrow2[9]+0.25]
-# opposite sign of force free H
-C1range = [0.5, 2.0]
 
 # get the in situ information
-global RCstart, RCend, TNCstart, TNCend, plotstart, plotend
-RCstart = float(data[43][1])
-RCend   = float(data[44][1])
+#global RCstart, RCend, TNCstart, TNCend, plotstart, plotend
+global CMEstart, CMEend, CMEmid, plotstart, plotend
 
-TNCstart = float(data[45][1])
-TNCend = float(data[46][1])
+if 'CME_start' in input_values:  CMEstart = float(input_values['CME_start'])
+else: sys.exit('Add CME_start to input file')
+if 'CME_stop' in input_values:  CMEend = float(input_values['CME_stop'])
+else: sys.exit('Add CME_stop to input file')
 
-flag_it = False
-if TNCstart < 0:
-	TNCstart = RCstart
-	TNCend   = RCend
-	flag_it  = True
 pad = 3
-plotstart = np.min([TNCstart, RCstart]) - pad/24.
-plotend   = np.max([TNCend, RCend]) + pad/24.
-global CMEstart, CMEend, CMEmid
-CMEstart  = float(data[47][1])
-CMEend    = float(data[48][1])
+plotstart = CMEstart - pad/24.
+plotend   = CMEend + pad/24.
 CMEmid    = 0.5 * (CMEstart + CMEend)
-print 'RC start, end: ',  RCstart, RCend
-print 'TNC start, end: ',  TNCstart, TNCend
 print "start, mid, end:  ", CMEstart, CMEmid, CMEend
 
 
 
 # read in ACE data
 global d_t, d_Btot, d_Bx, d_By, d_Bz, Wind_t, Wind_B, Wind_Bx, Wind_By, Wind_Bz
-filename = 'ACE_CME'+ str(myid+1) +'.dat'
+
+if 'insitufile' in input_values:
+    filename = input_values['insitufile']
+else: sys.exit('Add insitufile to input file')
+
 i_date = int(plotstart)
 i_hour = int(plotstart % 1 * 24)
 f_date = int(plotend) 
@@ -950,8 +991,9 @@ d_tUN = d_fracdays
 global avg_obs_B
 avg_obs_B = np.mean(d_Btot[np.where(np.abs(d_tUN - CMEmid) < 2./24.)])
 
+flag_it = False # turned off for now
 # read in Wind data if we have it
-if flag_it==False:
+'''if flag_it==False:
 	dataW = np.genfromtxt('Wind_CME'+ str(myid+1) +'.txt', skip_header=102, dtype=None)
 	Wind_t  = []
 	Wind_Bx = []
@@ -976,7 +1018,7 @@ if flag_it==False:
 	Wind_Bz = Wind_Bz[np.where(Wind_Bx > -1e10)]
 	Wind_By = Wind_By[np.where(Wind_Bx > -1e10)]
 	Wind_Bx = Wind_Bx[np.where(Wind_Bx > -1e10)]
-	Wind_B = np.sqrt(Wind_Bx**2 + Wind_By**2 + Wind_Bz**2)	
+	Wind_B = np.sqrt(Wind_Bx**2 + Wind_By**2 + Wind_Bz**2)	'''
 
 update_plot()
 root.mainloop()
