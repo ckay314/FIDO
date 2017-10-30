@@ -692,25 +692,32 @@ def find_bf():
     print prevCMElat, prevCMElon, prevCMEtilt, prevCMEAW, prevCMESRA, prevCMESRB, prevC1
     
 def save_plot():
-	mystrid = str(myid+1)
-	print 'saving FIDOCME'+mystrid
-	plt.savefig('FIDOCME'+mystrid+'.png')
-	f1 = open('FIDOCME'+mystrid+'.txt', 'w')
+	print 'saving FIDOCME'+my_name
+	plt.savefig('FIDOCME'+my_name+'.png')
+	f1 = open('FIDOCME'+my_name+'.txt', 'w')
 
-	f1.write('%-13s %8.2f \n' % ('CME_lat', CMElat))
-	f1.write('%-13s %8.2f \n' % ('CME_lon', CMElon))
-	f1.write('%-13s %8.2f \n' % ('CME_tilt', CMEtilt))
-	f1.write('%-13s %8.2f \n' % ('CME_AW', CMEAW))
-	f1.write('%-13s %8.2f \n' % ('CME_SRA', CMESRA))
-	f1.write('%-13s %8.2f \n' % ('CME_SRB', CMESRB))
-	f1.write('%-13s %8.2f \n' % ('CME_vr', CMEvr))
-	f1.write('%-13s %8.2f \n' % ('CME_Btor', CMEB0))
-	f1.write('%-13s %8.2f \n' % ('CME_bpol', CMEH))
+	f1.write('insitufile: '+ISfilename+' \n')
+	f1.write('%-13s %8.2f \n' % ('CME_lat: ', CMElat))
+	f1.write('%-13s %8.2f \n' % ('CME_lon: ', CMElon))
+	f1.write('%-13s %8.2f \n' % ('CME_tilt: ', CMEtilt))
+	f1.write('%-13s %8.2f \n' % ('CME_AW: ', CMEAW))
+	f1.write('%-13s %8.2f \n' % ('CME_Ashape: ', CMESRA))
+	f1.write('%-13s %8.2f \n' % ('CME_Bshape: ', CMESRB))
+	f1.write('%-13s %8.2f \n' % ('CME_vr: ', CMEvr))
+	f1.write('%-13s %8.2f \n' % ('CME_B0: ', CMEB0))
+	f1.write('%-13s %8.2f \n' % ('CME_pol: ', CMEH))
 	tadjust = float(e9.get())
-	f1.write('%-13s %8.2f \n' % ('t_shift', tadjust))
+	f1.write('%-13s %8.2f \n' % ('t_shift: ', tadjust))
 
-	f1.write('%-13s %8.2f \n' % ('FIDO_lat', FFlat))
-	f1.write('%-13s %8.2f \n' % ('FIDO_lon', FFlon0))
+	f1.write('%-13s %8.2f \n' % ('Earth_lat: ', FFlat))
+	f1.write('%-13s %8.2f \n' % ('Earth_lon: ', FFlon0))
+	f1.write('%-13s %8.2f \n' % ('CME_start: ', CMEstart))
+	f1.write('%-13s %8.2f \n' % ('CME_stop: ', CMEend))
+    # hardcoding this to normally used values - change later!!!
+	f1.write('CME_shape_model: Torus \n')
+	f1.write('Flux_rope_model: FF \n')
+	f1.write('Autonormalize: True \n')
+
 	f1.close()
 
 def get_inputs(inputs):
@@ -749,7 +756,9 @@ if len(sys.argv) < 2: sys.exit("Need an input file")
 
 input_file = sys.argv[1]
 inputs = np.genfromtxt(input_file, dtype=None)
-
+global my_name
+my_name = input_file[-11:-4]
+print my_name
 input_values = get_inputs(inputs)
 
 # set up the GUI
@@ -803,7 +812,7 @@ global CMEshapeToggleVAR
 CMEshapeToggleVAR = IntVar()
 if 'CME_shape_model' in input_values:
     if input_values['CME_shape_model'] == 'Torus': CMEshapeToggleVAR.set(0)
-    elif input_values['CME_shape_model'] == 'Torus': CMEshapeToggleVAR.set(1)
+    elif input_values['CME_shape_model'] == 'GCS': CMEshapeToggleVAR.set(1)
 
 Label(root, text='Flux Rope Shape:', bg='gray75').grid(row=7, column=0,columnspan=2)
 Radiobutton(root, text='Torus', variable=CMEshapeToggleVAR, value=0, bg='gray75').grid(column=0,row=8)
@@ -900,7 +909,7 @@ quit_button.grid(row=31, column=3)
 if 'Earth_lat' in input_values:
     eR1.insert(0, input_values['Earth_lat'])
 if 'Earth_lon' in input_values:
-    eR2.insert(0, input_values['Earth_lat'])
+    eR2.insert(0, input_values['Earth_lon'])
 if 'CME_lat' in input_values:
     e1.insert(0, input_values['CME_lat']) 
 if 'CME_lon' in input_values:
@@ -934,7 +943,7 @@ global CMEH
 CMEH = 1
 if 'CME_pol' in input_values:    
     used_pol = input_values['CME_pol']
-    if used_pol[1] == '-': CMEH = -1
+    if used_pol[0] == '-': CMEH = -1
     e7.insert(0, CMEH) # H
     
 
@@ -959,8 +968,9 @@ print "start, mid, end:  ", CMEstart, CMEmid, CMEend
 # read in ACE data
 global d_t, d_Btot, d_Bx, d_By, d_Bz, Wind_t, Wind_B, Wind_Bx, Wind_By, Wind_Bz
 
+global ISfilename
 if 'insitufile' in input_values:
-    filename = input_values['insitufile']
+    ISfilename = input_values['insitufile']
 else: sys.exit('Add insitufile to input file')
 
 i_date = int(plotstart)
@@ -968,7 +978,7 @@ i_hour = int(plotstart % 1 * 24)
 f_date = int(plotend) 
 f_hour = int(plotend % 1 % 1 * 24)
 print i_date, i_hour, f_date, f_hour
-data = np.genfromtxt(filename, skip_header = 44, dtype=np.float)
+data = np.genfromtxt(ISfilename, skip_header = 44, dtype=np.float)
 d_yr = data[:,0]
 yrlen = 365
 if (d_yr[0] % 4 == 0): yrlen = 366
