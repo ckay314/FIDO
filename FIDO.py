@@ -14,11 +14,7 @@ from matplotlib.ticker import ScalarFormatter, FormatStrFormatter
 from Tkinter import *
 from pylab import setp
 import random 
-#from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
-##from mpl_toolkits.axes_grid1 import make_axes_locatable
-#from matplotlib.ticker import ScalarFormatter, FormatStrFormatter
 
-# These are things I am copying from ForeCAT and reusing--------------------------|
 # Geometry programs
 def SPH2CART(sph_in):
     r = sph_in[0]
@@ -65,14 +61,13 @@ def rotz(vec, ang):
 	yout = np.sin(ang) * vec[0] + np.cos(ang) * vec[1]
 	return [xout, yout, vec[2]]
 
-#---end of boring copied portion----------------------------------------------|
 
 
 # New functions
 def isinCME(vec_in, CME_shape):
-	# Check and see if the requested point is actually in the CME and return
-	# the cylindrical radial distance (from center of FR)
-	# Function assumes vec_in is in CME Cartesian coord sys
+    # Check and see if the requested point is actually in the CME and return
+    # the cylindrical radial distance (from center of FR)
+    # Function assumes vec_in is in CME Cartesian coord sys
     thetas = np.linspace(-math.pi/2, math.pi/2, 101)
     # determine the xz positions of the rope axis
     if CMEshapeToggle==0:
@@ -94,14 +89,12 @@ def isinCME(vec_in, CME_shape):
     minidx = minidxs[0]
     temp = thetas[np.where(dists2 == myb2)]
     mythetaT = temp[0]
-	#for i in range(len(thetas)):
-	#	print vec_in, xFR[i], zFR[i], thetas[i]*radeg, np.sqrt(dists2[i])
-	# add a second iteration to refine B
-	# see which side of minidx the actual minimum is on
+    # add a second iteration to refine B
+    # see which side of minidx the actual minimum is on
     if minidx < len(dists2) - 1: # check to make sure not already at edge
         if dists2[minidx-1] < dists2[minidx+1]: startidx = minidx - 1
         else:  startidx = minidx + 1
-		# repeat the same procedure on the side with the acutal min
+	# repeat the same procedure on the side with the acutal min
         if dists2[minidx-1] != dists2[minidx+1]:
             thetas2 = np.linspace(thetas[startidx], thetas[minidx], 101)
             if CMEshapeToggle==0:
@@ -112,43 +105,37 @@ def isinCME(vec_in, CME_shape):
                 RGCS2   = np.sqrt((bGCS**2*kappa**2 - rhoGCS**2)/(1-kappa**2) + X0GCS2**2)
                 xFR2    = bGCS + X0GCS2*np.cos(thetas2) 
                 zFR2    = X0GCS2 * np.sin(thetas2)
-
             dists2 = (vec_in[0] - xFR2)**2 + vec_in[1]**2 + (vec_in[2] - zFR2)**2
-			#check if behind FR
-			# need to do this
             myb2 = np.min(dists2)
             minidxs = np.where(dists2 == myb2)
             minidx = minidxs[0]
             temp = thetas2[np.where(dists2 == myb2)]
             mythetaT = temp[0]
-			#print xFR2[minidx], zFR2[minidx]
     myb = np.sqrt(myb2)
     if CMEshapeToggle==0: CME_crossrad = CME_shape[2]
     if CMEshapeToggle==1: 
         if ('RGCS2' not in locals()) and ('RGCS2' not in globals()):
             RGCS2 = RGCS
         CME_crossrad = RGCS2[np.where(dists2 == myb2)]
-    #print myb, CME_crossrad, CME_shape
     if (myb > CME_crossrad):
 		#print 'Outside CME, distance is ', myb, CME_shape[2]
         myb = -9999.
         return myb, -9999, -9999., -9999, -9999
     else:
-		# thetaP should swing quickly at closest approach to FR
+	# thetaP should swing quickly at closest approach to FR
         mythetaP = np.arcsin(vec_in[1] / myb)
         origTP = mythetaP
+	# doesn't run through second loop sometimes
         if ('xFR2' not in locals()) and ('xFR2' not in globals()):
             xFR2 = xFR
+	# convert thetaP to complement
         # had a random case that blew up here -> added try/except
         try: 
             if vec_in[0] < (xFR2[minidx] ):	
-			    #print 'flipped it'
                 if vec_in[1] > 0: mythetaP = math.pi - mythetaP
                 else: mythetaP = -math.pi - mythetaP
         except:
             pass
-	# return the distance, the toroidal, and the poloidal angle of the 
-	#print myb, mythetaT*radeg, mythetaP * radeg, CME_shape[2] 
     return myb, mythetaT, mythetaP, 0, CME_crossrad
 
 def getBvector(CME_shape, minb, thetaT, thetaP):
@@ -164,7 +151,7 @@ def getBvector(CME_shape, minb, thetaT, thetaP):
         sP = np.sin(thetaP)
         cP = np.cos(thetaP)
         X0GCS  = (rhoGCS + bGCS * kappa**2*cT) / (1-kappa**2)
-        RGCS   = minb  #np.sqrt((bGCS**2*kappa**2 - rhoGCS**2)/(1-kappa**2) + X0GCS**2)
+        RGCS   = minb  
         dXdt   = - bGCS * kappa**2  * sT / (1 - kappa**2)
         dRdt   = X0GCS * dXdt / RGCS
         tdir = np.array([-sT*(X0GCS + RGCS * cP) + cT* (dXdt+ dRdt *cP), dRdt*sP, cT*(X0GCS + RGCS * cP) + sT* (dXdt+ dRdt *cP)])
@@ -216,17 +203,17 @@ def update_insitu():
     #print 'in update insitu', CMElat, CMElon, CMEtilt, CMEAW, CMEB0, kappa
     while t < tmax:  
         tARR.append(t/3600.)
-		# convert flyer position to CME Cartesian coordinates
-		# have to do in loop to account for Earth orbit
-		# get Sun xyz position
+	# convert flyer position to CME Cartesian coordinates
+	# have to do in loop to account for Earth orbit
+	# get Sun xyz position
         FF_sunxyz = SPH2CART([215., FFlat, FFlon])
-		# rotate to CMEcoord system
+	# rotate to CMEcoord system
         temp = rotz(FF_sunxyz, -CMElon)
         temp2 = roty(temp, CMElat)
         FF_CMExyz = rotx(temp2, CMEtilt)
         #print FF_CMExyz
-		# determine CME expansion and propagation
-		# calculate CME shape
+	# determine CME expansion and propagation
+	# calculate CME shape
         if CMEshapeToggle==0:
             CME_shape[3] = CMEnose * np.tan(CMEAW*dtor) / (1. + CMESRB + np.tan(CMEAW*dtor) * (CMESRA + CMESRB))
             CME_shape[1] = CME_shape[3] * CMESRA
@@ -236,29 +223,25 @@ def update_insitu():
             CME_shape[0] = CMEnose* (1-kappa) * np.cos(alphaGCS) / (1. + np.sin(alphaGCS))
             CME_shape[1] = CME_shape[0] / np.cos(alphaGCS)
             CME_shape[2] = CME_shape[0] * np.tan(alphaGCS)  
-		# check to see if the flyer is currently in the CME
-		# if so, get its position in CME torus coords 
+	# check to see if the flyer is currently in the CME
+	# if so, get its position in CME torus coords 
         minb, thetaT, thetaP, flagit, CME_crossrad = isinCME(FF_CMExyz, CME_shape)
-		# need to check that thetaP doesn't jump as it occasionally will
+	# need to check that thetaP doesn't jump as it occasionally will
         if flagit != -9999:
-			# define it the first time its used
+	    # define it the first time its used
             if thetaPprev==-42: 
                 thetaPprev = thetaP
-                #print 'init cross section radius: ', CME_crossrad
-                #print CME_shape
             delThetaP = np.abs(thetaP - thetaPprev)
- 			#print thetaPprev, thetaP, delThetaP, delThetaP>0.5
             if delThetaP > 0.5: thetaP = thetaPprev
             thetaPprev = thetaP
-			#print minb, CME_shape, FF_CMExyz, print temp2
-		# get the toroidal and poloidal magnetic field
+	# get the toroidal and poloidal magnetic field
         if fluxRopeToggle==0:
             Btor = CMEB * jv(0, 2.4 * minb / CME_crossrad)
             Bpol = CMEB * CMEH * jv(1, 2.4 * minb / CME_crossrad)
         if fluxRopeToggle==1:
 			Btor = CMEB * (cTau - (minb/CME_crossrad)**(1+cN))
 			Bpol = -CMEB * (minb/CME_crossrad)**(1+cM) / cC1 * (-np.sign(CMEH)) * ((cN+1.)/(cM+2.))     
-		# save the magnetic field if in CME
+	# save the magnetic field if in CME
         if flagit != -9999.:
             # convert this into CME Cartesian coordinates
             tdir, pdir = getBvector(CME_shape, minb, thetaT, thetaP)
@@ -273,22 +256,18 @@ def update_insitu():
             obsBx.append(BSC[0])
             obsBy.append(BSC[1])
             obsBz.append(BSC[2])
-			#if switch==0:  # use this to check values of initial point in MC
-			#	print CME_shape, minb, thetaT, thetaP
-			#	switch = 1
         else:
             obsBx.append(0.)
             obsBy.append(0.)
             obsBz.append(0.)
         #print t/3600, minb, CME_shape[2], CMEnose, CME_shape[1]
         t += dt
-		# CME nose moves to new position
+	# CME nose moves to new position
         CMEnose += CMEvr * dt / 7e5 # change position in Rsun
-		# update the total magnetic field
+	# update the total magnetic field
         CMEB *= ((CMEnose - CMEvr * dt / 7e5) / CMEnose)**2
-		# determine new lon of observer
+	# determine new lon of observer
         FFlon += dt / 3600. / 24 / 365. * 360 
-    #print 'through CME'
     return obsBx, obsBy, obsBz, tARR
 
 def update_plot():
@@ -368,20 +347,29 @@ def update_plot():
                 obsBy = obsBy[:idx2] 
                 obsBz = obsBz[:idx2] 
                 tARR  = tARR[:idx2]
-        obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
+            obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
 
-        # scale the CME to match at midpoint (ignoring B0 with this)
-        avg_FIDO_B = np.mean(obsB[np.where(np.abs(tshift+tARR - CMEmid) < 2./24.)])
-        scale = 1.
-        if autonormVAR.get()==1: scale = avg_obs_B / avg_FIDO_B
-        obsBx *= scale
-        obsBy *= scale
-        obsBz *= scale
-        obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
+            # scale the CME to match at midpoint (ignoring B0 with this)
+	    scale = 1.   
+ 	    if autonormVAR.get()==1:     
+	    	cent_idx = np.where(np.abs(tshift+tARR - CMEmid) < 2./24.)[0]
+	    	if len(cent_idx) > 0: 
+	    	    avg_FIDO_B = np.mean(obsB[cent_idx])
+	    	    scale = avg_obs_B / avg_FIDO_B
+	     	else:
+	            print 'CME too short to autonormalize, reverting to B0'
+            	obsBx *= scale
+            	obsBy *= scale
+            	obsBz *= scale
+            obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
 
-        scoreBx, scoreBy, scoreBz = calc_score()
-        print 'initial score', totalscore
-      
+            scoreBx, scoreBy, scoreBz = calc_score()
+            print 'score', totalscore
+ 
+  	else:
+	    print 'No impact expected'
+	    plotCME = False
+   
     ax2.clear()
     ax3.clear()
     ax4.clear()
@@ -467,10 +455,7 @@ def update_plot():
     plt.gcf().canvas.draw()
 
 def calc_score():
-    # calculate the score for Bx By and Bz with ACE
-    #maxt      = int(np.max(tARR*24))-1
     maxt = int(24*(CMEend-CMEstart))# -1
-    #print maxt
     FIDO_hrt  = np.zeros(maxt)
     FIDO_hrBx = np.zeros(maxt)
     FIDO_hrBy = np.zeros(maxt)
@@ -479,16 +464,8 @@ def calc_score():
     ACE_hrBy = np.zeros(maxt)
     ACE_hrBz = np.zeros(maxt)
     
-    # set to start checking at beginning or end of obs CME
-    #global CMEstart, CMEend
-    
-    #FIDO_hr  = (tARR + tshift) * 24 
-    #print CMEstart, tshift, d_tUN[0]
     ACE_t = (d_tUN - CMEstart) * 24
     FIDO_hr = (tARR + tshift - CMEstart) *24
-    #print CMEend, CMEstart, maxt
-    #ACE_t    = d_tUN *24 - FIDO_hr[0]  # normalize so FIDO_hr[0] = 0
-    #FIDO_hr -= FIDO_hr[0]
     for i in range(maxt):
         ishere = len(FIDO_hr[abs(FIDO_hr - (i+.5))  <= 0.5]) > 0
         if ishere:
@@ -511,24 +488,10 @@ def calc_score():
     scoreBz = np.mean(errZ)   
     global totalscore
     totalscore = np.mean(np.sqrt(errX**2+errY**2+errZ**2))
-    
-    if np.mean(np.abs(FIDO_hrBx)) < 0.0001:
-        print 'missed'
-        scoreBx, scoreBy, scoreBz = 9.99, 9.99, 9.99
-        totalscore = 99.
-    # had a random case that blew up here -> added try/except
-    try:
-        # add to total score if CME is too short by more than 30 mins
-        if tARR[-1] + tshift < CMEend - .5/24.: totalscore += 5.
-        # penalize if over an hour too long
-        #if tARR[-1] + tshift > CMEend + 1./24.: totalscore += 5.
-        # penalize proportional to time over beyond an hour
-        overamt = tARR[-1] + tshift - CMEend
-        #print overamt
-        if overamt > 1/24.: totalscore += 0.1 * (24 * overamt - 1) 
-        
-    except:
-        totalscore += 10.  # return bad score if fails
+
+    if tARR[-1] + tshift < CMEend - .5/24.: totalscore += 5.
+    overamt = tARR[-1] + tshift - CMEend
+    if overamt > 1/24.: totalscore += 0.1 * (24 * overamt - 1) 
     return scoreBx, scoreBy, scoreBz
     
 def find_bf():
@@ -692,9 +655,9 @@ def find_bf():
     print prevCMElat, prevCMElon, prevCMEtilt, prevCMEAW, prevCMESRA, prevCMESRB, prevC1
     
 def save_plot():
-	print 'saving FIDOCME'+my_name
-	plt.savefig('FIDOCME'+my_name+'.png')
-	f1 = open('FIDOCME'+my_name+'.txt', 'w')
+	print 'saving '+my_name
+	plt.savefig(my_name+'.png')
+	f1 = open(my_name+'.txt', 'w')
 
 	f1.write('insitufile: '+ISfilename+' \n')
 	f1.write('%-13s %8.2f \n' % ('CME_lat: ', CMElat))
@@ -707,23 +670,25 @@ def save_plot():
 	f1.write('%-13s %8.2f \n' % ('CME_B0: ', CMEB0))
 	f1.write('%-13s %8.2f \n' % ('CME_pol: ', CMEH))
 	tadjust = float(e9.get())
-	f1.write('%-13s %8.2f \n' % ('t_shift: ', tadjust))
+	f1.write('%-13s %8.2f \n' % ('tshift: ', tadjust))
 
 	f1.write('%-13s %8.2f \n' % ('Earth_lat: ', FFlat))
 	f1.write('%-13s %8.2f \n' % ('Earth_lon: ', FFlon0))
 	f1.write('%-13s %8.2f \n' % ('CME_start: ', CMEstart))
 	f1.write('%-13s %8.2f \n' % ('CME_stop: ', CMEend))
+	f1.write('Launch_GUI: '+ str(Launch_GUI))
+	f1.write('Autonormalize: '+ str(Autonormalize))
     # hardcoding this to normally used values - change later!!!
-	f1.write('CME_shape_model: Torus \n')
-	f1.write('Flux_rope_model: FF \n')
-	f1.write('Autonormalize: True \n')
+	#f1.write('CME_shape_model: Torus \n')
+	#f1.write('Flux_rope_model: FF \n')
+	#f1.write('Autonormalize: True \n')
 
 	f1.close()
 
 def get_inputs(inputs):
     # take a file with unsorted input values and return a dictionary.
     # variable names have to match their names below
-    possible_vars = ['insitufile', 'Earth_lat', 'Earth_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'CME_shape_model', 'Flux_rope_model', 'Autonormalize', 'Circ_m', 'Circ_n', 'Circ_C1', 'Circ_Tau']
+    possible_vars = ['insitufile', 'Earth_lat', 'Earth_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'CME_shape_model', 'Flux_rope_model', 'Autonormalize', 'Circ_m', 'Circ_n', 'Circ_C1', 'Circ_Tau', 'Launch_GUI']
     
     # if matches add to dictionary
     input_values = {}
@@ -757,8 +722,8 @@ if len(sys.argv) < 2: sys.exit("Need an input file")
 input_file = sys.argv[1]
 inputs = np.genfromtxt(input_file, dtype=None)
 global my_name
-my_name = input_file[-11:-4]
-print my_name
+my_name = input_file[:-4]
+print 'Files will be saved as ', my_name
 input_values = get_inputs(inputs)
 
 # set up the GUI
@@ -807,16 +772,18 @@ e9 = Entry(root, width=10)
 e9.grid(column=1, row=6)
 
 
+# no shape choice in simpliFIDO, stick to torus
 # radio button to choose between torus and GCS
 global CMEshapeToggleVAR
 CMEshapeToggleVAR = IntVar()
-if 'CME_shape_model' in input_values:
-    if input_values['CME_shape_model'] == 'Torus': CMEshapeToggleVAR.set(0)
-    elif input_values['CME_shape_model'] == 'GCS': CMEshapeToggleVAR.set(1)
+#if 'CME_shape_model' in input_values:
+#    if input_values['CME_shape_model'] == 'Torus': CMEshapeToggleVAR.set(0)
+#    elif input_values['CME_shape_model'] == 'GCS': CMEshapeToggleVAR.set(1)
 
-Label(root, text='Flux Rope Shape:', bg='gray75').grid(row=7, column=0,columnspan=2)
-Radiobutton(root, text='Torus', variable=CMEshapeToggleVAR, value=0, bg='gray75').grid(column=0,row=8)
-Radiobutton(root, text='GCS', variable=CMEshapeToggleVAR, value=1, bg='gray75').grid(column=1,row=8)
+#Label(root, text='Flux Rope Shape:', bg='gray75').grid(row=7, column=0,columnspan=2)
+#Radiobutton(root, text='Torus', variable=CMEshapeToggleVAR, value=0, bg='gray75').grid(column=0,row=8)
+#Radiobutton(root, text='GCS', variable=CMEshapeToggleVAR, value=1, bg='gray75').grid(column=1,row=8)
+CMEshapeToggleVAR.set(0)
 
 # Torus Parameters
 Label(root, text="Torus Parameters", bg='gray75').grid(column=0, row=9, columnspan=2)
@@ -827,28 +794,34 @@ Label(root, text='B:', bg='gray75').grid(column=0, row=11)
 e5 = Entry(root, width=10)
 e5.grid(column=1, row=11)
 
+# turn off GCS options
 # GCS parameter
-Label(root, text="GCS Parameter", bg='gray75').grid(column=0, row=12, columnspan=2)
-Label(root, text='kappa:', bg='gray75').grid(column=0, row=13)
-eGCS = Entry(root, width=10)
-eGCS.grid(column=1, row=13)
+#Label(root, text="GCS Parameter", bg='gray75').grid(column=0, row=12, columnspan=2)
+#Label(root, text='kappa:', bg='gray75').grid(column=0, row=13)
+#eGCS = Entry(root, width=10)
+#eGCS.grid(column=1, row=13)
 
+# only allow for FF flux rope, turn off circular 
 # Flux rope parameters
 # radio button to choose between force-free and circular
 global fluxRopeToggleVAR
 fluxRopeToggleVAR = IntVar()
-if 'Flux_rope_model' in input_values:
-    if input_values['Flux_rope_model'] == 'FF': fluxRopeToggleVAR.set(0)
-    elif input_values['Flux_rope_model'] == 'GCS': fluxRopeToggleVAR.set(1)
-Label(root, text='Flux Rope Model:', bg='gray75').grid(row=0, column=3,columnspan=2)
-Radiobutton(root, text='Force Free', variable=fluxRopeToggleVAR, value=0, bg='gray75').grid(column=3,row=1)
-Radiobutton(root, text='Circular', variable=fluxRopeToggleVAR, value=1, bg='gray75').grid(column=4,row=1)
+#if 'Flux_rope_model' in input_values:
+#    if input_values['Flux_rope_model'] == 'FF': fluxRopeToggleVAR.set(0)
+#    elif input_values['Flux_rope_model'] == 'GCS': fluxRopeToggleVAR.set(1)
+#Label(root, text='Flux Rope Model:', bg='gray75').grid(row=0, column=3,columnspan=2)
+#Radiobutton(root, text='Force Free', variable=fluxRopeToggleVAR, value=0, bg='gray75').grid(column=3,row=1)
+#Radiobutton(root, text='Circular', variable=fluxRopeToggleVAR, value=1, bg='gray75').grid(column=4,row=1)
+fluxRopeToggleVAR.set(0)
 
 # check button for autonormalizing magnitude
-global autonormVAR
+global autonormVAR, Autonormalize
 autonormVAR = IntVar()
+Autonormalize = 'False'
 if 'Autonormalize' in input_values:
-    if input_values['Autonormalize'] == 'True': autonormVAR.set(1)
+    if input_values['Autonormalize'] == 'True': 
+	autonormVAR.set(1)
+	Autonormalize = 'True'
     elif input_values['Autonormalize'] == 'False': autonormVAR.set(0)
 
 normCheck = Checkbutton(root, text='Auto Normalize', bg='gray75', var=autonormVAR).grid(column=3, row=2)
@@ -860,22 +833,22 @@ e6.grid(column=4, row=4)
 Label(root, text='Pol. Direction:', bg='gray75').grid(column=3, row=5)
 e7 = Entry(root, width=10)
 e7.grid(column=4, row=5)
-Label(root, text='Circular Parameters', bg='gray75').grid(column=3, row=6, columnspan=2)
-Label(root, text='B0:', bg='gray75').grid(column=3, row=7)
-ec1 = Entry(root, width=10)
-ec1.grid(column=4, row=7)
-Label(root, text='m:', bg='gray75').grid(column=3, row=8)
-ec2 = Entry(root, width=10)
-ec2.grid(column=4, row=8)
-Label(root, text='n:', bg='gray75').grid(column=3, row=9)
-ec3 = Entry(root, width=10)
-ec3.grid(column=4, row=9)
-Label(root, text='tau:', bg='gray75').grid(column=3, row=10)
-ec4 = Entry(root, width=10)
-ec4.grid(column=4, row=10)
-Label(root, text='C1:', bg='gray75').grid(column=3, row=11)
-ec5 = Entry(root, width=10)
-ec5.grid(column=4, row=11)
+#Label(root, text='Circular Parameters', bg='gray75').grid(column=3, row=6, columnspan=2)
+#Label(root, text='B0:', bg='gray75').grid(column=3, row=7)
+#ec1 = Entry(root, width=10)
+#ec1.grid(column=4, row=7)
+#Label(root, text='m:', bg='gray75').grid(column=3, row=8)
+#ec2 = Entry(root, width=10)
+#ec2.grid(column=4, row=8)
+#Label(root, text='n:', bg='gray75').grid(column=3, row=9)
+#ec3 = Entry(root, width=10)
+#ec3.grid(column=4, row=9)
+#Label(root, text='tau:', bg='gray75').grid(column=3, row=10)
+#ec4 = Entry(root, width=10)
+#ec4.grid(column=4, row=10)
+#Label(root, text='C1:', bg='gray75').grid(column=3, row=11)
+#ec5 = Entry(root, width=10)
+#ec5.grid(column=4, row=11)
 
 # FIDO parameters
 Label(root, text='FIDO position', bg='gray75').grid(column=3,row=12)
@@ -890,9 +863,10 @@ print_button = Button(root, text="Save Plot", command = save_plot)
 print_button.grid(row=31,column=1)
 draw_button = Button(root, text="Update Plot", command = update_plot)
 draw_button.grid(row=31,column=2)
-BF_button = Button(root, text="Find Best Fit", command = find_bf)
-BF_button.grid(row=32,column=2)
-quit_button = Button(root, text="Quit", command = root.quit, fg='red')
+# remove search for bf
+#BF_button = Button(root, text="Find Best Fit", command = find_bf)
+#BF_button.grid(row=32,column=2)
+quit_button = Button(root, text="Quit", command = root.quit, bg='red')
 quit_button.grid(row=31, column=3)
 
 
@@ -929,15 +903,18 @@ if 'tshift' in input_values:
 if 'CME_B0' in input_values:
     # stick in both for now
     e6.insert(0, input_values['CME_B0'])
-    ec1.insert(0,input_values['CME_B0']) 
-if 'Circ_m' in input_values:
+    #ec1.insert(0,input_values['CME_B0']) 
+'''if 'Circ_m' in input_values:
     ec2.insert(0,input_values['Circ_m']) 
 if 'Circ_n' in input_values:
     ec3.insert(0,input_values['Circ_n'])        
 if 'Circ_Tau' in input_values:
     ec4.insert(0,input_values['Circ_Tau'])     
 if 'Circ_C1' in input_values:
-    ec5.insert(0,input_values['Circ_C1'])  
+    ec5.insert(0,input_values['Circ_C1'])'''  
+if 'Launch_GUI' in input_values:
+    Launch_GUI = input_values['Launch_GUI']
+else: Launch_GUI = 'True'
 
 global CMEH
 CMEH = 1
@@ -961,7 +938,7 @@ pad = 3
 plotstart = CMEstart - pad/24.
 plotend   = CMEend + pad/24.
 CMEmid    = 0.5 * (CMEstart + CMEend)
-print "start, mid, end:  ", CMEstart, CMEmid, CMEend
+#print "start, mid, end:  ", CMEstart, CMEmid, CMEend
 
 
 
@@ -977,7 +954,7 @@ i_date = int(plotstart)
 i_hour = int(plotstart % 1 * 24)
 f_date = int(plotend) 
 f_hour = int(plotend % 1 % 1 * 24)
-print i_date, i_hour, f_date, f_hour
+#print i_date, i_hour, f_date, f_hour
 data = np.genfromtxt(ISfilename, skip_header = 44, dtype=np.float)
 d_yr = data[:,0]
 yrlen = 365
@@ -1031,6 +1008,9 @@ flag_it = False # turned off for now
 	Wind_B = np.sqrt(Wind_Bx**2 + Wind_By**2 + Wind_Bz**2)	'''
 
 update_plot()
-root.mainloop()
-root.quit()
+if Launch_GUI != 'False':
+	root.mainloop()
+	root.quit()
+else:
+	save_plot()
 
