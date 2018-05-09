@@ -1,7 +1,7 @@
-insitufile: ACE_CME7.dat 
+insitufile: ACE_CME7.dat
 CME_lat:         -4.58 
 CME_lon:        306.76 
-CME_tilt:       -23.30 
+CME_tilt:       113.30 
 CME_AW:          30.00 
 CME_Ashape:       0.80 
 CME_Bshape:       0.26 
@@ -13,5 +13,6 @@ Earth_lat:       -1.58
 Earth_lon:      303.66 
 CME_start:      148.80 
 CME_stop:       149.71 
-Autonormalize:  True
 Launch_GUI: True
+Autonormalize: True
+Save_Profile: True

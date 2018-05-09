@@ -1,9 +1,6 @@
 import numpy as np
 import math
 import sys
-import os
-import pickle
-import dateit as DI
 from scipy.special import jv
 import matplotlib
 matplotlib.use("TkAgg")
@@ -205,13 +202,24 @@ def update_insitu():
     return obsBx, obsBy, obsBz, tARR
 
 def update_plot():
-    global CMElat, CMElon, CMEtilt, CMEAW, CMESRA, CMESRB, CMEB0, CMEH, CMEvr, tshift
+    global CMElat, CMElon, CMEtilt, CMEAW, CMESRA, CMESRB, CMEB0, CMEH, CMEvr, tshift, CMEstart, CMEend
     plotCME = True
     try:
         CMElat = float(e1.get())
         CMElon = float(e2.get())
     
         CMEtilt = float(e3.get())
+        # originally programmed tilt to be deg clockwise from N
+        # but counterclockwise from W more common in literature
+        # rather than alter code for shape, just convert it here
+        # need to make sure positive toroidal direction is same
+        global othertilt
+        othertilt = CMEtilt
+        if CMEtilt >=-90:
+            CMEtilt = 90 - CMEtilt
+        else:
+            CMEtilt = -180 - CMEtilt
+                    
         CMEAW   = float(e3b.get())
         CMESRA  = float(e4.get())
         CMESRB  = float(e5.get())
@@ -222,6 +230,14 @@ def update_plot():
         global FFlat, FFlon0
         FFlat   = float(eR1.get())
         FFlon0  = float(eR2.get()) 
+        CMEstart = float(eS1.get())
+        if CMEstart < minISdate:
+            print 'CME_start before first in situ time'
+            plotCME = False
+        CMEend = float(eS2.get())
+        if CMEend > maxISdate:
+            print 'CME_end before last in situ time'
+            plotCME = False
     except:
         plotCME = False
         print 'Error in CME params'
@@ -319,16 +335,14 @@ def update_plot():
 
 
     if plotCME == True: 
-	ax2.plot(tshift + tARR, obsB, 'r', linewidth=4)
-	ax3.plot(tshift + tARR, -obsBx, 'r', linewidth=4)
-        ax3.annotate('%0.2f'%(scoreBx), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16,
-                horizontalalignment='right', verticalalignment='bottom')
-	ax4.plot(tshift + tARR, -obsBy, 'r', linewidth=4)
-        ax4.annotate('%0.2f'%(scoreBy), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16,
-                horizontalalignment='right', verticalalignment='bottom')    
+        ax2.plot(tshift + tARR, obsB, 'r', linewidth=4)
+        ax2.annotate('%0.2f'%(totalscore), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
+        ax3.plot(tshift + tARR, -obsBx, 'r', linewidth=4)
+        ax3.annotate('%0.2f'%(scoreBx), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')
+        ax4.plot(tshift + tARR, -obsBy, 'r', linewidth=4)
+        ax4.annotate('%0.2f'%(scoreBy), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
         ax5.plot(tshift + tARR, obsBz, 'r', linewidth=4)
-        ax5.annotate('%0.2f'%(scoreBz), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16,
-                horizontalalignment='right', verticalalignment='bottom')    
+        ax5.annotate('%0.2f'%(scoreBz), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
     
     
     scl = 1.25
@@ -384,14 +398,13 @@ def calc_score():
     return scoreBx, scoreBy, scoreBz
         
 def save_plot():
-	print 'saving '+my_name
+	print 'saving as '+my_name
 	plt.savefig(my_name+'.png')
 	f1 = open(my_name+'.txt', 'w')
-
 	f1.write('insitufile: '+ISfilename+' \n')
 	f1.write('%-13s %8.2f \n' % ('CME_lat: ', CMElat))
 	f1.write('%-13s %8.2f \n' % ('CME_lon: ', CMElon))
-	f1.write('%-13s %8.2f \n' % ('CME_tilt: ', CMEtilt))
+	f1.write('%-13s %8.2f \n' % ('CME_tilt: ', othertilt))
 	f1.write('%-13s %8.2f \n' % ('CME_AW: ', CMEAW))
 	f1.write('%-13s %8.2f \n' % ('CME_Ashape: ', CMESRA))
 	f1.write('%-13s %8.2f \n' % ('CME_Bshape: ', CMESRB))
@@ -406,13 +419,22 @@ def save_plot():
 	f1.write('%-13s %8.2f \n' % ('CME_start: ', CMEstart))
 	f1.write('%-13s %8.2f \n' % ('CME_stop: ', CMEend))
 	f1.write('Launch_GUI: '+ str(Launch_GUI)+  '\n')
-	f1.write('Autonormalize: '+ str(Autonormalize))
+	f1.write('Autonormalize: '+ str(Autonormalize)+  '\n')
+	f1.write('Save_Profile: '+ str(Save_Profile))
 	f1.close()
+    
+	if Save_Profile == True:
+            f1 = open(my_name+'.dat', 'w')
+            print 'saving profile' 
+            for i in range(len(obsBx)):
+                f1.write('%10.5f %10.4f %10.4f %10.4f \n' % (tshift+tARR[i], obsBx[i], obsBy[i], obsBz[i]))
+            f1.close()
+    
 
 def get_inputs(inputs):
     # take a file with unsorted input values and return a dictionary.
     # variable names have to match their names below
-    possible_vars = ['insitufile', 'Earth_lat', 'Earth_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'Autonormalize', 'Launch_GUI']
+    possible_vars = ['insitufile', 'Earth_lat', 'Earth_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'Autonormalize', 'Launch_GUI', 'Save_Profile']
     
     # if matches add to dictionary
     input_values = {}
@@ -459,51 +481,47 @@ canvas.get_tk_widget().grid(row=0, column=2, rowspan=30) #.grid(row=0,column=0)
 
 # set up the panels of the figure
 ax2  = fig2.add_subplot(411)
-ax2.set_ylabel('B (G)')
 setp(ax2.get_xticklabels(), visible=False)
 ax3  = fig2.add_subplot(412, sharex=ax2)
-ax3.set_ylabel('B$_x$ (G)')
 setp(ax3.get_xticklabels(), visible=False)
 ax4  = fig2.add_subplot(413, sharex=ax2)
-ax4.set_ylabel('B$_y$ (G)')
 setp(ax4.get_xticklabels(), visible=False)
 ax5  = fig2.add_subplot(414, sharex=ax2)
-ax5.set_ylabel('B$_z$ (G)')
-ax5.set_xlabel('Time (hours)')
 plt.subplots_adjust(right=0.8, wspace=0.001, hspace=0.001)
 plt.tight_layout()
 
 
 # CME parameters
 Label(root, text='CME Parameters', bg='gray75').grid(column=0,row=0, columnspan=2)
-Label(root, text='CME Lat:', bg='gray75').grid(column=0, row=1)
+Label(root, text='CME Lat (deg):', bg='gray75').grid(column=0, row=1)
 e1 = Entry(root, width=10)
 e1.grid(column=1,row=1)
-Label(root, text='CME Lon:', bg='gray75').grid(column=0, row=2)
+Label(root, text='CME Lon (deg):', bg='gray75').grid(column=0, row=2)
 e2 = Entry(root, width=10)
 e2.grid(column=1, row=2)
-Label(root, text='Tilt from N (Deg):', bg='gray75').grid(column=0, row=3)
+Label(root, text='Tilt from W (deg):', bg='gray75').grid(column=0, row=3)
 e3 = Entry(root, width=10)
 e3.grid(column=1, row=3)
-Label(root, text='Angular Width (Deg):', bg='gray75').grid(column=0, row=4)
+Label(root, text='Angular Width (deg):', bg='gray75').grid(column=0, row=4)
 e3b = Entry(root, width=10)
 e3b.grid(column=1, row=4)
 Label(root, text='CME vr (km/s):', bg='gray75').grid(column=0, row=5)
 e8 = Entry(root, width=10)
 e8.grid(column=1, row=5)
-Label(root, text='Time Shift:', bg='gray75').grid(column=0, row=6)
+Label(root, text='Time Shift (hr):', bg='gray75').grid(column=0, row=6)
 e9 = Entry(root, width=10)
 e9.grid(column=1, row=6)
 
 
 # Torus Parameters
-Label(root, text="Torus Parameters", bg='gray75').grid(column=0, row=9, columnspan=2)
+Label(root, text="Torus Shape Parameters", bg='gray75').grid(column=0, row=9, columnspan=2)
 Label(root, text='A:', bg='gray75').grid(column=0, row=10)
 e4 = Entry(root, width=10)
 e4.grid(column=1, row=10)
 Label(root, text='B:', bg='gray75').grid(column=0, row=11)
 e5 = Entry(root, width=10)
 e5.grid(column=1, row=11)
+
 
 # check button for autonormalizing magnitude
 global autonormVAR, Autonormalize
@@ -515,31 +533,48 @@ if 'Autonormalize' in input_values:
 	Autonormalize = 'True'
     elif input_values['Autonormalize'] == 'False': autonormVAR.set(0)
 
-normCheck = Checkbutton(root, text='Auto Normalize', bg='gray75', var=autonormVAR).grid(column=3, row=2)
+normCheck = Checkbutton(root, text='Autonormalize', bg='gray75', var=autonormVAR).grid(column=3, row=2)
 
-Label(root, text='Force Free Parameters', bg='gray75').grid(column=3, row=3, columnspan=2)
-Label(root, text='B0:', bg='gray75').grid(column=3, row=4)
+global Save_Profile
+if 'Save_Profile' in input_values:
+    if input_values['Save_Profile'] == 'True':
+        Save_Profile = True
+else:
+    Save_Profile = False
+
+Label(root, text='Force Free Parameters', bg='gray75').grid(column=0, row=13, columnspan=2)
+Label(root, text='B0:', bg='gray75').grid(column=0, row=14)
 e6 = Entry(root, width=10)
-e6.grid(column=4, row=4)
-Label(root, text='Pol. Direction:', bg='gray75').grid(column=3, row=5)
+e6.grid(column=1, row=14)
+Label(root, text='Pol. Direction:', bg='gray75').grid(column=0, row=15)
 e7 = Entry(root, width=10)
-e7.grid(column=4, row=5)
+e7.grid(column=1, row=15)
+
+# CME start stop time
+Label(root, text='Observed CME Boundaries', bg='gray75').grid(column=3,row=5, columnspan=2)
+Label(root, text='Start (DOY)', bg='gray75').grid(column=3,row=6)
+eS1 = Entry(root, width=10)
+eS1.grid(column=4, row=6)
+Label(root, text='Stop (DOY)', bg='gray75').grid(column=3,row=7)
+eS2 = Entry(root, width=10)
+eS2.grid(column=4, row=7)
+
 
 # FIDO parameters
-Label(root, text='FIDO position', bg='gray75').grid(column=3,row=12)
-Label(root, text='FIDO Lat:', bg='gray75').grid(column=3, row=13)
+Label(root, text='FIDO position', bg='gray75').grid(column=3,row=10, columnspan=2)
+Label(root, text='FIDO Lat:', bg='gray75').grid(column=3, row=11)
 eR1 = Entry(root, width=10)
-eR1.grid(column=4, row=13)
-Label(root, text='FIDO Lon:', bg='gray75').grid(column=3, row=14)
+eR1.grid(column=4, row=11)
+Label(root, text='FIDO Lon:', bg='gray75').grid(column=3, row=12)
 eR2 = Entry(root, width=10)
-eR2.grid(column=4, row=14)
+eR2.grid(column=4, row=12)
 
 print_button = Button(root, text="Save Plot", command = save_plot)
-print_button.grid(row=31,column=1)
+print_button.grid(row=16,column=3, columnspan=2)
 draw_button = Button(root, text="Update Plot", command = update_plot)
-draw_button.grid(row=31,column=2)
+draw_button.grid(row=14,column=3, columnspan=2)
 quit_button = Button(root, text="Quit", command = root.quit, bg='red')
-quit_button.grid(row=31, column=3)
+quit_button.grid(row=18, column=3, columnspan=2)
 
 # insert values 
 if 'Earth_lat' in input_values:
@@ -580,9 +615,13 @@ if 'CME_pol' in input_values:
 # get the in situ information
 global CMEstart, CMEend, CMEmid, plotstart, plotend
 
-if 'CME_start' in input_values:  CMEstart = float(input_values['CME_start'])
+if 'CME_start' in input_values:  
+    CMEstart = float(input_values['CME_start'])
+    eS1.insert(0, CMEstart)
 else: sys.exit('Add CME_start to input file')
-if 'CME_stop' in input_values:  CMEend = float(input_values['CME_stop'])
+if 'CME_stop' in input_values:  
+    CMEend = float(input_values['CME_stop'])
+    eS2.insert(0, CMEend)
 else: sys.exit('Add CME_stop to input file')
 
 pad = 3
@@ -603,23 +642,27 @@ i_hour = int(plotstart % 1 * 24)
 f_date = int(plotend) 
 f_hour = int(plotend % 1 % 1 * 24)
 
+# Change header length here
 data = np.genfromtxt(ISfilename, skip_header = 44, dtype=np.float)
-d_yr = data[:,0]
-yrlen = 365
-if (d_yr[0] % 4 == 0): yrlen = 366
-d_days = data[:,1]
-d_hours  = data[:,2]
 
 # determine the initial and final index of the desired time period
-iidx = np.min(np.where((d_days == i_date) & (d_hours == i_hour)))
-fidx = np.min(np.where((d_days == f_date) & (d_hours == f_hour)))
-d_fracdays = data[iidx:fidx+1,5]
-d_Btot = data[iidx:fidx+1,6]
-d_Bx = data[iidx:fidx+1,7]
-d_By = data[iidx:fidx+1,8]
-d_Bz = data[iidx:fidx+1,9]
+try:
+    iidx = np.min(np.where(data[:,0] >= plotstart))
+except:
+    sys.exit('CME_start outside in situ data range')
+try:
+    fidx = np.max(np.where(data[:,0] <= plotend))
+except:
+    sys.exit('CME_stop outside in situ data range')
+d_fracdays = data[iidx:fidx+1,0]
+d_Bx = data[iidx:fidx+1,1]
+d_By = data[iidx:fidx+1,2]
+d_Bz = data[iidx:fidx+1,3]
+d_Btot = np.sqrt(d_Bx**2 + d_By**2 + d_Bz**2)
 d_t = (d_fracdays - d_fracdays[0]) * 24
 d_tUN = d_fracdays
+global minISdate, maxISdate
+minISdate, maxISdate = np.min(d_tUN), np.max(d_tUN)
 
 # calculate the average magnetic field in the middle, used to normalize out B0
 global avg_obs_B
