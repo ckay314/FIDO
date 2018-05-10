@@ -141,6 +141,7 @@ def update_insitu():
     FFlon = FFlon0
     thetaPprev = -42
     switch = 0
+    flagExp = False
     while t < tmax:  
         tARR.append(t/3600.)
 	# convert flyer position to CME Cartesian coordinates
@@ -154,9 +155,10 @@ def update_insitu():
         #print FF_CMExyz
 	# determine CME expansion and propagation
 	# calculate CME shape
-        CME_shape[3] = CMEnose * np.tan(CMEAW*dtor) / (1. + CMESRB + np.tan(CMEAW*dtor) * (CMESRA + CMESRB))
-        CME_shape[1] = CME_shape[3] * CMESRA
-        CME_shape[2] = CME_shape[3] * CMESRB 
+        if flagExp == False:
+            CME_shape[3] = CMEnose * np.tan(CMEAW*dtor) / (1. + CMESRB + np.tan(CMEAW*dtor) * (CMESRA + CMESRB))
+            CME_shape[1] = CME_shape[3] * CMESRA
+            CME_shape[2] = CME_shape[3] * CMESRB 
         CME_shape[0] = CMEnose - CME_shape[1] - CME_shape[2]
 	# check to see if the flyer is currently in the CME
 	# if so, get its position in CME torus coords 
@@ -166,6 +168,7 @@ def update_insitu():
 	    # define it the first time its used
             if thetaPprev==-42: 
                 thetaPprev = thetaP
+                if expansionToggle == 1: flagExp = True
             delThetaP = np.abs(thetaP - thetaPprev)
             if delThetaP > 0.5: thetaP = thetaPprev
             thetaPprev = thetaP
@@ -196,7 +199,8 @@ def update_insitu():
 	# CME nose moves to new position
         CMEnose += CMEvr * dt / 7e5 # change position in Rsun
 	# update the total magnetic field
-        CMEB *= ((CMEnose - CMEvr * dt / 7e5) / CMEnose)**2
+        if flagExp == False:
+            CMEB *= ((CMEnose - CMEvr * dt / 7e5) / CMEnose)**2
 	# determine new lon of observer
         FFlon += dt / 3600. / 24 / 365. * 360 
     return obsBx, obsBy, obsBz, tARR
@@ -206,8 +210,7 @@ def update_plot():
     plotCME = True
     try:
         CMElat = float(e1.get())
-        CMElon = float(e2.get())
-    
+        CMElon = float(e2.get())    
         CMEtilt = float(e3.get())
         # originally programmed tilt to be deg clockwise from N
         # but counterclockwise from W more common in literature
@@ -219,12 +222,13 @@ def update_plot():
             CMEtilt = 90 - CMEtilt
         else:
             CMEtilt = -180 - CMEtilt
-                    
+        global expansionToggle
+        expansionToggle = expansionToggleVAR.get()
         CMEAW   = float(e3b.get())
         CMESRA  = float(e4.get())
         CMESRB  = float(e5.get())
-	CMEB0   = float(e6.get())
-	CMEH	= float(e7.get())
+        CMEB0   = float(e6.get())
+        CMEH	= float(e7.get())
         CMEvr   = float(e8.get())
         tshift  = float(e9.get())
         global FFlat, FFlon0
@@ -420,7 +424,12 @@ def save_plot():
 	f1.write('%-13s %8.2f \n' % ('CME_stop: ', CMEend))
 	f1.write('Launch_GUI: '+ str(Launch_GUI)+  '\n')
 	f1.write('Autonormalize: '+ str(Autonormalize)+  '\n')
-	f1.write('Save_Profile: '+ str(Save_Profile))
+	f1.write('Save_Profile: '+ str(Save_Profile)+  '\n')
+	if expansionToggleVAR.get() == 0:
+	    exstr = 'Self-Similar'
+	else:
+	    exstr = 'None'
+	f1.write('Expansion_Model: '+ exstr)
 	f1.close()
     
 	if Save_Profile == True:
@@ -434,7 +443,7 @@ def save_plot():
 def get_inputs(inputs):
     # take a file with unsorted input values and return a dictionary.
     # variable names have to match their names below
-    possible_vars = ['insitufile', 'Earth_lat', 'Earth_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'Autonormalize', 'Launch_GUI', 'Save_Profile']
+    possible_vars = ['insitufile', 'Earth_lat', 'Earth_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'Autonormalize', 'Launch_GUI', 'Save_Profile', 'Expansion_Model']
     
     # if matches add to dictionary
     input_values = {}
@@ -533,7 +542,7 @@ if 'Autonormalize' in input_values:
 	Autonormalize = 'True'
     elif input_values['Autonormalize'] == 'False': autonormVAR.set(0)
 
-normCheck = Checkbutton(root, text='Autonormalize', bg='gray75', var=autonormVAR).grid(column=3, row=2)
+normCheck = Checkbutton(root, text='Autonormalize', bg='gray75', var=autonormVAR).grid(column=3, row=1)
 
 global Save_Profile
 if 'Save_Profile' in input_values:
@@ -541,6 +550,7 @@ if 'Save_Profile' in input_values:
         Save_Profile = True
 else:
     Save_Profile = False
+    
 
 Label(root, text='Force Free Parameters', bg='gray75').grid(column=0, row=13, columnspan=2)
 Label(root, text='B0:', bg='gray75').grid(column=0, row=14)
@@ -549,6 +559,23 @@ e6.grid(column=1, row=14)
 Label(root, text='Pol. Direction:', bg='gray75').grid(column=0, row=15)
 e7 = Entry(root, width=10)
 e7.grid(column=1, row=15)
+
+global expansionToggleVAR
+expansionToggleVAR = IntVar()
+Label(root, text='Expansion Profile:', bg='gray75').grid(row=2, column=3,columnspan=2)
+Radiobutton(root, text='Self-Similar', variable=expansionToggleVAR, value=0, bg='gray75').grid(column=3,row=3)
+Radiobutton(root, text='None', variable=expansionToggleVAR, value=1, bg='gray75').grid(column=4,row=3)
+
+if 'Expansion_Model' in input_values:
+    if input_values['Expansion_Model'] == 'None':
+        expansionToggleVAR.set(1)
+    elif input_values['Expansion_Model'] == 'Self-Similar':
+        expansionToggleVAR.set(0)
+    else:
+        sys.exit('Expansion_Model should be None or Self-Similar')
+else:
+    expansionToggleVAR.set(0)
+
 
 # CME start stop time
 Label(root, text='Observed CME Boundaries', bg='gray75').grid(column=3,row=5, columnspan=2)
