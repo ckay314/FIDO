@@ -206,16 +206,21 @@ def update_insitu():
     return obsBx, obsBy, obsBz, tARR
 
 def update_plot():
-    global CMElat, CMElon, CMEtilt, CMEAW, CMESRA, CMESRB, CMEB0, CMEH, CMEvr, tshift, CMEstart, CMEend
+    global CMElat, CMElon, CMEtilt, CMEAW, CMESRA, CMESRB, CMEB0, CMEH, CMEvr, tshift, CMEstart, CMEend, CMEmid, avg_obs_B
+    global range_flag, plotstart, plotend
+    global scale_flag
     plotCME = True
+    canScore = True
     try:
         CMElat = float(e1.get())
     except:
-        print "Need CME latitude"
+        if canprint: print "Need CME latitude"
+        plotCME = False
     try:
         CMElon = float(e2.get())  
     except:
-        print "Need CME longitude"
+        if canprint: print "Need CME longitude"
+        plotCME = False
     try:  
         CMEtilt = float(e3.get())
         # originally programmed tilt to be deg clockwise from N
@@ -229,34 +234,41 @@ def update_plot():
         else:
             CMEtilt = -180 - CMEtilt
     except:
-        print "Need CME tilt"
+        if canprint: print "Need CME tilt"
+        plotCME = False
         
     global expansionToggle
     expansionToggle = expansionToggleVAR.get()
     try:
         CMEAW   = float(e3b.get())
     except:
-        print "Need CME angular width"
+        if canprint: print "Need CME angular width"
+        plotCME = False
     try:
         CMESRA  = float(e4.get())
     except:
-        print "Need CME shape A"
+        if canprint: print "Need CME shape A"
+        plotCME = False
     try:
         CMESRB  = float(e5.get())
     except:
-        print "Need CME shape B"
+        if canprint: print "Need CME shape B"
+        plotCME = False
     try:
         CMEB0   = float(e6.get())
     except:
-        print "Need CME flux rope magnitude B0"
+        if canprint: print "Need CME flux rope magnitude B0"
+        plotCME = False
     try:
         CMEH	= float(e7.get())
     except:
-        print "Need handedness +1 or -1"
+        if canprint: print "Need handedness +1 or -1"
+        plotCME = False
     try:
         CMEvr   = float(e8.get())
     except:
-        print "Need CME velocity"
+        if canprint: print "Need CME velocity"
+        plotCME = False
     try:
         tshift  = float(e9.get())
     except:
@@ -265,11 +277,13 @@ def update_plot():
     try:    
         FFlat   = float(eR1.get())
     except:
-        print "Need spacecraft latitude"
+        if canprint: print "No spacecraft latitude, assuming at 0"
+        FFlat = 0
     try:
         FFlon0  = float(eR2.get()) 
     except:
-        print "Need spacecraft longitude"
+        if canprint: print "Need spacecraft longitude, assuming at 0"
+        FFlon0 = 0
     try:
         CMEstart = float(eS1.get())
         if ISfilename != False:
@@ -281,18 +295,22 @@ def update_plot():
                 print 'CME_end before last in situ time'
                 plotCME = False
     except:
-        plotCME = False
-        print 'Error in CME params'
-        
+        canScore = False
+        # set equal to plot start if have data otherwise it should stay at 0
+        if (range_flag == False) and (plotstart > 0):
+            CMEstart = plotstart
+            CMEend = plotend
+        if canprint: print 'No CME start/stop time -> no score'
+        if canprint: print 'Assuming CME starts at plot start'
     if plotCME==True:
         # define as globals so can use to calculate score
         global obsBx, obsBy, obsBz, obsB, tARR, totalscore
         obsBx, obsBy, obsBz, tARR = update_insitu()
         obsBx, obsBy, obsBz = np.array(obsBx), np.array(obsBy), np.array(obsBz)
         tARR = np.array(tARR) 
-        tshift = CMEstart + tshift/24.
+        if scale_flag == False: 
+            tshift = 24*(CMEstart + tshift/24.)
         tARR = tARR/24.
-
     	# find the beginning and end of the actual magnetic cloud portion of the data 
     	# check if beginning and end are equal to 0
         if np.sum(np.abs(obsBx)) > 0.:
@@ -316,9 +334,19 @@ def update_plot():
             obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
 
             # scale the CME to match at midpoint (ignoring B0 with this)
+	    tARR = tARR + tshift/24.
+        
+	    if scale_flag == True: 
+                try:
+                    tARR = tARR + tshift/24 + d_tUN[0]
+                except:
+                    tARR = tARR + tshift/24. # d_tUN might not be defined if no background data
+                CMEmid = np.mean(tARR)
+                if ISfilename != False:
+                    avg_obs_B = np.mean(d_Btot[np.where(np.abs(d_tUN - CMEmid) < 2./24.)])
 	    scale = 1.   
  	    if (autonormVAR.get()==1) and (ISfilename !=False): 
-                cent_idx = np.where(np.abs(tshift+tARR - CMEmid) < 2./24.)[0]    	
+                cent_idx = np.where(np.abs(tARR - CMEmid) < 2./24.)[0]  
                 if len(cent_idx) > 0: 
                     avg_FIDO_B = np.mean(obsB[cent_idx])
                     scale = avg_obs_B / avg_FIDO_B
@@ -329,8 +357,9 @@ def update_plot():
                 obsBz *= scale
                 obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
 
-                scoreBx, scoreBy, scoreBz = calc_score()
-                print 'score', totalscore
+                if canScore:
+                    scoreBx, scoreBy, scoreBz = calc_score()
+                    if canprint: print 'score', totalscore
  	    else:
                 totalscore = 9999.
                 scoreBx, scoreBy, scoreBz = 9999., 9999., 9999.
@@ -338,7 +367,16 @@ def update_plot():
   	else:
 	    print 'No impact expected'
 	    plotCME = False
-   
+        
+    if range_flag == True:
+        if ISfilename != False:
+            plotstart = d_tUN[0]
+            plotend = d_tUN[-1]
+        else:
+            plotstart = tARR[0]-0.2
+            plotend = tARR[-1]+0.2
+        range_flag = False
+        
     ax2.clear()
     ax3.clear()
     ax4.clear()
@@ -370,51 +408,46 @@ def update_plot():
     elif plotCME != False:
         maxBtot = np.max(obsB)
         minBx = np.abs(np.min(-obsBx))
-        maxBx = np.max(-obsBx)
+        maxBx = np.abs(np.max(-obsBx))
         minBy = np.abs(np.min(-obsBy))
-        maxBy = np.max(-obsBy)
+        maxBy = np.abs(np.max(-obsBy))
         minBz = np.abs(np.min(obsBz))
-        maxBz = np.max(obsBz)
-        print minBx, maxBx
+        maxBz = np.abs(np.max(obsBz))
         
     else:
         maxBtot = 1
         minBx, minBy, minBz = 1, 1, 1 # set as neg later
         maxBx, maxBy, maxBz = 1, 1, 1
-            
-    ax2.plot([CMEstart, CMEstart], [0., 1.3*maxBtot], 'k--', linewidth=2)
-    ax2.plot([CMEend, CMEend], [0., 1.3*maxBtot], 'k--', linewidth=2)
-    ax2.set_ylabel('B (nT)')
-    setp(ax2.get_xticklabels(), visible=False)
     
-    ax3.plot([CMEstart, CMEstart], [-1.3*minBx, 1.3*maxBx], 'k--', linewidth=2)
-    ax3.plot([CMEend, CMEend], [-1.3*minBx, 1.3*maxBx], 'k--', linewidth=2)
+    if canScore:
+        ax2.plot([CMEstart, CMEstart], [0., 1.3*maxBtot], 'k--', linewidth=2)
+        ax2.plot([CMEend, CMEend], [0., 1.3*maxBtot], 'k--', linewidth=2)
+        ax3.plot([CMEstart, CMEstart], [-1.3*minBx, 1.3*maxBx], 'k--', linewidth=2)
+        ax3.plot([CMEend, CMEend], [-1.3*minBx, 1.3*maxBx], 'k--', linewidth=2)
+        ax4.plot([CMEstart, CMEstart], [-1.3*minBy, 1.3*maxBy], 'k--', linewidth=2)
+        ax4.plot([CMEend, CMEend], [-1.3*minBy, 1.3*maxBy], 'k--', linewidth=2)
+        ax5.plot([CMEstart, CMEstart], [-1.3*minBz, 1.3*maxBz], 'k--', linewidth=2)
+        ax5.plot([CMEend, CMEend], [-1.3*minBz, 1.3*maxBz], 'k--', linewidth=2)
+
+    ax2.set_ylabel('B (nT)')
+    setp(ax2.get_xticklabels(), visible=False)    
     ax3.set_ylabel('B$_x$ (nT)')
     setp(ax3.get_xticklabels(), visible=False)
-
-    ax4.plot([CMEstart, CMEstart], [-1.3*minBy, 1.3*maxBy], 'k--', linewidth=2)
-    ax4.plot([CMEend, CMEend], [-1.3*minBy, 1.3*maxBy], 'k--', linewidth=2)
     ax4.set_ylabel('B$_y$ (nT)')
     setp(ax4.get_xticklabels(), visible=False)
-
-    
-    ax5.plot([CMEstart, CMEstart], [-1.3*minBz, 1.3*maxBz], 'k--', linewidth=2)
-    ax5.plot([CMEend, CMEend], [-1.3*minBz, 1.3*maxBz], 'k--', linewidth=2)
     ax5.set_ylabel('B$_z$ (nT)')
-
     ax5.set_xlabel('Day of Year')
 
     if plotCME == True: 
-        ax2.plot(tshift + tARR, obsB, 'r', linewidth=4)
-        ax3.plot(tshift + tARR, -obsBx, 'r', linewidth=4)
-        ax4.plot(tshift + tARR, -obsBy, 'r', linewidth=4)
-        ax5.plot(tshift + tARR, obsBz, 'r', linewidth=4)
-        if ISfilename != False:
+        ax2.plot(tARR, obsB, 'r', linewidth=4)
+        ax3.plot(tARR, -obsBx, 'r', linewidth=4)
+        ax4.plot(tARR, -obsBy, 'r', linewidth=4)
+        ax5.plot(tARR, obsBz, 'r', linewidth=4)
+        if (ISfilename != False) and canScore:
             ax2.annotate('%0.2f'%(totalscore), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
             ax3.annotate('%0.2f'%(scoreBx), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')
             ax4.annotate('%0.2f'%(scoreBy), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
             ax5.annotate('%0.2f'%(scoreBz), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
-    
     
     scl = 1.25
     ax2.set_ylim([0,scl*maxBtot])
@@ -439,7 +472,7 @@ def calc_score():
     ACE_hrBz = np.zeros(maxt)
     
     ACE_t = (d_tUN - CMEstart) * 24
-    FIDO_hr = (tARR + tshift - CMEstart) *24
+    FIDO_hr = (tARR - CMEstart) *24
     for i in range(maxt):
         ishere = len(FIDO_hr[abs(FIDO_hr - (i+.5))  <= 0.5]) > 0
         if ishere:
@@ -463,13 +496,13 @@ def calc_score():
     global totalscore
     totalscore = np.mean(np.sqrt(errX**2+errY**2+errZ**2))
 
-    if tARR[-1] + tshift < CMEend - .5/24.: totalscore += 5.
-    overamt = tARR[-1] + tshift - CMEend
+    if tARR[-1] < CMEend - .5/24.: totalscore += 5.
+    overamt = tARR[-1] - CMEend
     if overamt > 1/24.: totalscore += 0.1 * (24 * overamt - 1) 
     return scoreBx, scoreBy, scoreBz
         
 def save_plot():
-    print 'saving as '+my_name
+    if canprint: print 'saving as '+my_name
     plt.savefig(my_name+'.png')
     f1 = open(my_name+'.txt', 'w')
     if ISfilename == False: ISfilename = "NONE"
@@ -488,8 +521,8 @@ def save_plot():
     except:
             tadjust = 0.
     f1.write('%-13s %8.2f \n' % ('tshift: ', tadjust))
-    f1.write('%-13s %8.2f \n' % ('Earth_lat: ', FFlat))
-    f1.write('%-13s %8.2f \n' % ('Earth_lon: ', FFlon0))
+    f1.write('%-13s %8.2f \n' % ('Sat_lat: ', FFlat))
+    f1.write('%-13s %8.2f \n' % ('Sat_lon: ', FFlon0))
     f1.write('%-13s %8.2f \n' % ('CME_start: ', CMEstart))
     f1.write('%-13s %8.2f \n' % ('CME_stop: ', CMEend))
     f1.write('Launch_GUI: '+ str(Launch_GUI)+  '\n')
@@ -504,7 +537,7 @@ def save_plot():
     
     if Save_Profile == True:
             f1 = open(my_name+'.dat', 'w')
-            print 'saving profile' 
+            if canprint: print 'saving profile' 
             for i in range(len(obsBx)):
                 f1.write('%10.5f %10.4f %10.4f %10.4f \n' % (tshift+tARR[i], obsBx[i], obsBy[i], obsBz[i]))
             f1.close()
@@ -513,7 +546,7 @@ def save_plot():
 def get_inputs(inputs):
     # take a file with unsorted input values and return a dictionary.
     # variable names have to match their names below
-    possible_vars = ['insitufile', 'Earth_lat', 'Earth_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'Autonormalize', 'Launch_GUI', 'Save_Profile', 'Expansion_Model']
+    possible_vars = ['insitufile', 'Sat_lat', 'Sat_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'Autonormalize', 'Launch_GUI', 'Save_Profile', 'Expansion_Model', 'Silent']
     
     # if matches add to dictionary
     input_values = {}
@@ -548,8 +581,14 @@ input_file = sys.argv[1]
 inputs = np.genfromtxt(input_file, dtype=None)
 global my_name
 my_name = input_file[:-4]
-print 'Files will be saved as ', my_name
 input_values = get_inputs(inputs)
+
+global silent 
+canprint = True
+if 'Silent' in input_values: canprint = False
+    
+
+if canprint: print 'Files will be saved as ', my_name
 
 # set up the GUI
 root = Tk()
@@ -673,10 +712,10 @@ quit_button = Button(root, text="Quit", command = root.quit, bg='red')
 quit_button.grid(row=18, column=3, columnspan=2)
 
 # insert values 
-if 'Earth_lat' in input_values:
-    eR1.insert(0, input_values['Earth_lat'])
-if 'Earth_lon' in input_values:
-    eR2.insert(0, input_values['Earth_lon'])
+if 'Sat_lat' in input_values:
+    eR1.insert(0, input_values['Sat_lat'])
+if 'Sat_lon' in input_values:
+    eR2.insert(0, input_values['Sat_lon'])
 if 'CME_lat' in input_values:
     e1.insert(0, input_values['CME_lat']) 
 if 'CME_lon' in input_values:
@@ -714,16 +753,22 @@ global CMEstart, CMEend, CMEmid, plotstart, plotend
 if 'CME_start' in input_values:  
     CMEstart = float(input_values['CME_start'])
     eS1.insert(0, CMEstart)
-else: sys.exit('Add CME_start to input file')
 if 'CME_stop' in input_values:  
     CMEend = float(input_values['CME_stop'])
     eS2.insert(0, CMEend)
-else: sys.exit('Add CME_stop to input file')
 
 pad = 3
-plotstart = CMEstart - pad/24.
-plotend   = CMEend + pad/24.
-CMEmid    = 0.5 * (CMEstart + CMEend)
+
+global range_flag, scale_flag
+scale_flag = False
+range_flag = False
+if 'CME_start' in input_values:
+    plotstart = CMEstart - pad/24.
+    plotend   = CMEend + pad/24.
+    CMEmid    = 0.5 * (CMEstart + CMEend)
+else:
+    range_flag = True
+    scale_flag = True
 
 # read in data (coded to work with ACE)
 global d_t, d_Btot, d_Bx, d_By, d_Bz, Wind_t, Wind_B, Wind_Bx, Wind_By, Wind_Bz
@@ -738,24 +783,26 @@ else:
     ISfilename = False
     #sys.exit('Add insitufile to input file')
 
-if ISfilename != False:
-    i_date = int(plotstart)
-    i_hour = int(plotstart % 1 * 24)
-    f_date = int(plotend) 
-    f_hour = int(plotend % 1 % 1 * 24)
-
+if (ISfilename != False):
     # Don't need skip_header for prepped daya
     data = np.genfromtxt(ISfilename, dtype=np.float, skip_header=44)
-
-    # determine the initial and final index of the desired time period
-    try:
-        iidx = np.min(np.where(data[:,0] >= plotstart))
-    except:
-        sys.exit('CME_start outside in situ data range')
-    try:
-        fidx = np.max(np.where(data[:,0] <= plotend))
-    except:
-        sys.exit('CME_stop outside in situ data range')
+    if (range_flag==False):
+        i_date = int(plotstart)
+        i_hour = int(plotstart % 1 * 24)
+        f_date = int(plotend) 
+        f_hour = int(plotend % 1 % 1 * 24)
+        # determine the initial and final index of the desired time period
+        try:
+            iidx = np.min(np.where(data[:,0] >= plotstart))
+        except:
+            sys.exit('CME_start outside in situ data range')
+        try:
+            fidx = np.max(np.where(data[:,0] <= plotend))
+        except:
+            sys.exit('CME_stop outside in situ data range')
+    else:
+        iidx = 0
+        fidx = -2
     d_fracdays = data[iidx:fidx+1,0]
     d_Bx = data[iidx:fidx+1,1]
     d_By = data[iidx:fidx+1,2]
@@ -765,10 +812,10 @@ if ISfilename != False:
     d_tUN = d_fracdays
     global minISdate, maxISdate
     minISdate, maxISdate = np.min(d_tUN), np.max(d_tUN)
-
     # calculate the average magnetic field in the middle, used to normalize out B0
     global avg_obs_B
-    avg_obs_B = np.mean(d_Btot[np.where(np.abs(d_tUN - CMEmid) < 2./24.)])
+    if range_flag == False:
+        avg_obs_B = np.mean(d_Btot[np.where(np.abs(d_tUN - CMEmid) < 2./24.)])
 else:
     d_Btot, d_Bx, d_By, d_Bz = 0., 0., 0., 0.
 
