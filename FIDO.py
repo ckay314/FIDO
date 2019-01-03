@@ -4,11 +4,11 @@ import sys
 from scipy.special import jv
 import matplotlib
 matplotlib.use("TkAgg")
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from matplotlib import pyplot as plt
 from matplotlib.ticker import ScalarFormatter, FormatStrFormatter
-from Tkinter import *
+from tkinter import *
 from pylab import setp
 import random 
 
@@ -214,12 +214,12 @@ def update_plot():
     try:
         CMElat = float(e1.get())
     except:
-        if canprint: print "Need CME latitude"
+        if canprint: print("Need CME latitude")
         plotCME = False
     try:
         CMElon = float(e2.get())  
     except:
-        if canprint: print "Need CME longitude"
+        if canprint: print("Need CME longitude")
         plotCME = False
     try:  
         CMEtilt = float(e3.get())
@@ -234,7 +234,7 @@ def update_plot():
         else:
             CMEtilt = -180 - CMEtilt
     except:
-        if canprint: print "Need CME tilt"
+        if canprint: print("Need CME tilt")
         plotCME = False
         
     global expansionToggle
@@ -242,32 +242,32 @@ def update_plot():
     try:
         CMEAW   = float(e3b.get())
     except:
-        if canprint: print "Need CME angular width"
+        if canprint: print("Need CME angular width")
         plotCME = False
     try:
         CMESRA  = float(e4.get())
     except:
-        if canprint: print "Need CME shape A"
+        if canprint: print("Need CME shape A")
         plotCME = False
     try:
         CMESRB  = float(e5.get())
     except:
-        if canprint: print "Need CME shape B"
+        if canprint: print("Need CME shape B")
         plotCME = False
     try:
         CMEB0   = float(e6.get())
     except:
-        if canprint: print "Need CME flux rope magnitude B0"
+        if canprint: print("Need CME flux rope magnitude B0")
         plotCME = False
     try:
         CMEH	= float(e7.get())
     except:
-        if canprint: print "Need handedness +1 or -1"
+        if canprint: print("Need handedness +1 or -1")
         plotCME = False
     try:
         CMEvr   = float(e8.get())
     except:
-        if canprint: print "Need CME velocity"
+        if canprint: print("Need CME velocity")
         plotCME = False
     try:
         tshift  = float(e9.get())
@@ -277,22 +277,22 @@ def update_plot():
     try:    
         FFlat   = float(eR1.get())
     except:
-        if canprint: print "No spacecraft latitude, assuming at 0"
+        if canprint: print("No spacecraft latitude, assuming at 0")
         FFlat = 0
     try:
         FFlon0  = float(eR2.get()) 
     except:
-        if canprint: print "Need spacecraft longitude, assuming at 0"
+        if canprint: print("Need spacecraft longitude, assuming at 0")
         FFlon0 = 0
     try:
         CMEstart = float(eS1.get())
         if ISfilename != False:
             if CMEstart < minISdate:
-                print 'CME_start before first in situ time'
+                print('CME_start before first in situ time')
                 plotCME = False
             CMEend = float(eS2.get())
             if CMEend > maxISdate:
-                print 'CME_end before last in situ time'
+                print('CME_end before last in situ time')
                 plotCME = False
     except:
         canScore = False
@@ -300,8 +300,8 @@ def update_plot():
         if (range_flag == False) and (plotstart > 0):
             CMEstart = plotstart
             CMEend = plotend
-        if canprint: print 'No CME start/stop time -> no score'
-        if canprint: print 'Assuming CME starts at plot start'
+        if canprint: print('No CME start/stop time -> no score')
+        if canprint: print('Assuming CME starts at plot start')
     if plotCME==True:
         # define as globals so can use to calculate score
         global obsBx, obsBy, obsBz, obsB, tARR, totalscore
@@ -334,9 +334,9 @@ def update_plot():
             obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
 
             # scale the CME to match at midpoint (ignoring B0 with this)
-	    tARR = tARR + tshift/24.
+        tARR = tARR + tshift/24.
         
-	    if scale_flag == True: 
+        if scale_flag == True: 
                 try:
                     tARR = tARR + tshift/24 + d_tUN[0]
                 except:
@@ -344,14 +344,14 @@ def update_plot():
                 CMEmid = np.mean(tARR)
                 if ISfilename != False:
                     avg_obs_B = np.mean(d_Btot[np.where(np.abs(d_tUN - CMEmid) < 2./24.)])
-	    scale = 1.   
- 	    if (autonormVAR.get()==1) and (ISfilename !=False): 
+        scale = 1.   
+        if (autonormVAR.get()==1) and (ISfilename !=False): 
                 cent_idx = np.where(np.abs(tARR - CMEmid) < 2./24.)[0]  
                 if len(cent_idx) > 0: 
                     avg_FIDO_B = np.mean(obsB[cent_idx])
                     scale = avg_obs_B / avg_FIDO_B
                 else:
-                	print 'CME too short to autonormalize, reverting to B0'
+                	print('CME too short to autonormalize, reverting to B0')
                 obsBx *= scale
                 obsBy *= scale
                 obsBz *= scale
@@ -359,13 +359,13 @@ def update_plot():
 
                 if canScore:
                     scoreBx, scoreBy, scoreBz = calc_score()
-                    if canprint: print 'score', totalscore
- 	    else:
+                    if canprint: print('score '+ str(totalscore))
+        else:
                 totalscore = 9999.
                 scoreBx, scoreBy, scoreBz = 9999., 9999., 9999.
  
-  	else:
-	    print 'No impact expected'
+    else:
+	    print('No impact expected')
 	    plotCME = False
         
     if range_flag == True:
@@ -502,11 +502,11 @@ def calc_score():
     return scoreBx, scoreBy, scoreBz
         
 def save_plot():
-    if canprint: print 'saving as '+my_name
+    if canprint: print('saving as '+my_name)
     plt.savefig(my_name+'.png')
     f1 = open(my_name+'.txt', 'w')
-    if ISfilename == False: ISfilename = "NONE"
-    f1.write('insitufile: '+ISfilename+' \n')
+    if ISfilename != False: 
+        f1.write('insitufile: '+ISfilename+' \n')
     f1.write('%-13s %8.2f \n' % ('CME_lat: ', CMElat))
     f1.write('%-13s %8.2f \n' % ('CME_lon: ', CMElon))
     f1.write('%-13s %8.2f \n' % ('CME_tilt: ', othertilt))
@@ -537,7 +537,7 @@ def save_plot():
     
     if Save_Profile == True:
             f1 = open(my_name+'.dat', 'w')
-            if canprint: print 'saving profile' 
+            if canprint: print('saving profile') 
             for i in range(len(obsBx)):
                 f1.write('%10.5f %10.4f %10.4f %10.4f \n' % (tshift+tARR[i], obsBx[i], obsBy[i], obsBz[i]))
             f1.close()
@@ -578,7 +578,7 @@ kmRs  = 1.0e5 / rsun # km (/s) divided by rsun (in cm)
 if len(sys.argv) < 2: sys.exit("Need an input file")
 
 input_file = sys.argv[1]
-inputs = np.genfromtxt(input_file, dtype=None)
+inputs = np.genfromtxt(input_file, dtype=str)
 global my_name
 my_name = input_file[:-4]
 input_values = get_inputs(inputs)
@@ -588,7 +588,7 @@ canprint = True
 if 'Silent' in input_values: canprint = False
     
 
-if canprint: print 'Files will be saved as ', my_name
+if canprint: print('Files will be saved as '), my_name
 
 # set up the GUI
 root = Tk()
@@ -647,11 +647,12 @@ autonormVAR = IntVar()
 Autonormalize = 'False'
 if 'Autonormalize' in input_values:
     if input_values['Autonormalize'] == 'True': 
-	autonormVAR.set(1)
-	Autonormalize = 'True'
+        autonormVAR.set(1)
+        Autonormalize = 'True'
     elif input_values['Autonormalize'] == 'False': autonormVAR.set(0)
 
-normCheck = Checkbutton(root, text='Autonormalize', bg='gray75', var=autonormVAR).grid(column=3, row=1)
+Label(root, text='Autonormalize', bg='gray75').grid(column=3, row=0, columnspan=2)
+normCheck = Checkbutton(root, bg='gray75', var=autonormVAR).grid(column=3, row=1, columnspan=2)
 
 global Save_Profile
 Save_Profile = False
@@ -671,8 +672,10 @@ e7.grid(column=1, row=15)
 global expansionToggleVAR
 expansionToggleVAR = IntVar()
 Label(root, text='Expansion Profile:', bg='gray75').grid(row=2, column=3,columnspan=2)
-Radiobutton(root, text='Self-Similar', variable=expansionToggleVAR, value=0, bg='gray75').grid(column=3,row=3)
-Radiobutton(root, text='None', variable=expansionToggleVAR, value=1, bg='gray75').grid(column=4,row=3)
+Label(root, text='Self-Similar', bg='gray75').grid(row=3, column=3,columnspan=1)
+Radiobutton(root, variable=expansionToggleVAR, value=0, bg='gray75').grid(column=3,row=4)
+Label(root, text='None', bg='gray75').grid(row=3, column=4,columnspan=1)
+Radiobutton(root, variable=expansionToggleVAR, value=1, bg='gray75').grid(column=4,row=4)
 
 if 'Expansion_Model' in input_values:
     if input_values['Expansion_Model'] == 'None':
@@ -704,12 +707,18 @@ Label(root, text='FIDO Lon:', bg='gray75').grid(column=3, row=12)
 eR2 = Entry(root, width=10)
 eR2.grid(column=4, row=12)
 
-print_button = Button(root, text="Save Plot", command = save_plot)
-print_button.grid(row=16,column=3, columnspan=2)
-draw_button = Button(root, text="Update Plot", command = update_plot)
-draw_button.grid(row=14,column=3, columnspan=2)
-quit_button = Button(root, text="Quit", command = root.quit, bg='red')
-quit_button.grid(row=18, column=3, columnspan=2)
+Label(root, text='Update Plot', bg='gray75').grid(column=3,row=14, columnspan=2)
+draw_button = Button(root, text="Update Plot", command = update_plot, bg='gray75')
+draw_button.grid(row=15,column=3, columnspan=2)
+
+
+Label(root, text='Save Plot', bg='gray75').grid(column=3,row=16, columnspan=1)
+print_button = Button(root, bg='black', command = save_plot)
+print_button.grid(row=17,column=3, columnspan=1)
+
+Label(root, text='Quit', bg='gray75').grid(column=4,row=16, columnspan=1)
+quit_button = Button(root, command = root.quit)
+quit_button.grid(row=17, column=4, columnspan=2)
 
 # insert values 
 if 'Sat_lat' in input_values:
