@@ -640,19 +640,21 @@ e3b.grid(column=1, row=4)
 Label(root, text='CME vr (km/s):', bg='gray75').grid(column=0, row=5)
 e8 = Entry(root, width=10)
 e8.grid(column=1, row=5)
-Label(root, text='Time Shift (hr):', bg='gray75').grid(column=0, row=6)
+
+
+Label(root, text='Time Shift (hr):', bg='gray75').grid(column=0, row=16)
 e9 = Entry(root, width=10)
-e9.grid(column=1, row=6)
+e9.grid(column=1, row=16)
 
 
 # Torus Parameters
-Label(root, text="Torus Shape Parameters", bg='gray75').grid(column=0, row=9, columnspan=2)
-Label(root, text='A:', bg='gray75').grid(column=0, row=10)
-e4 = Entry(root, width=10)
-e4.grid(column=1, row=10)
-Label(root, text='B:', bg='gray75').grid(column=0, row=11)
-e5 = Entry(root, width=10)
-e5.grid(column=1, row=11)
+Label(root, text="Torus Shape Parameters", bg='gray75').grid(column=0, row=6, columnspan=2)
+Label(root, text='A:', bg='gray75').grid(column=0, row=7)
+e4 = Entry(root, width=7)
+e4.grid(column=1, row=7)
+Label(root, text='B:', bg='gray75').grid(column=0, row=8)
+e5 = Entry(root, width=7)
+e5.grid(column=1, row=8)
 
 
 # check button for autonormalizing magnitude
@@ -675,13 +677,13 @@ if 'Save_Profile' in input_values:
         Save_Profile = True
     
 
-Label(root, text='Force Free Parameters', bg='gray75').grid(column=0, row=13, columnspan=2)
-Label(root, text='B0:', bg='gray75').grid(column=0, row=14)
+Label(root, text='Force Free Parameters', bg='gray75').grid(column=0, row=11, columnspan=2)
+Label(root, text='B0:', bg='gray75').grid(column=0, row=12)
 e6 = Entry(root, width=10)
-e6.grid(column=1, row=14)
-Label(root, text='Pol. Direction:', bg='gray75').grid(column=0, row=15)
+e6.grid(column=1, row=12)
+Label(root, text='Pol. Direction:', bg='gray75').grid(column=0, row=13)
 e7 = Entry(root, width=10)
-e7.grid(column=1, row=15)
+e7.grid(column=1, row=13)
 
 global expansionToggleVAR
 expansionToggleVAR = IntVar()
@@ -766,7 +768,7 @@ else:
 if 'CME_Bshape' in input_values:
     e5.insert(0, input_values['CME_Bshape'])   
 else:
-    e5.insert(0, 0.34)
+    e5.insert(0, 0.35)
 if 'CME_vr' in input_values:
     e8.insert(0, input_values['CME_vr'])
 else:
