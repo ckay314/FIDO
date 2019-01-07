@@ -340,34 +340,35 @@ def update_plot():
                 obsBz = obsBz[:idx2] 
                 tARR  = tARR[:idx2]
             obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
-
             # scale the CME to match at midpoint (ignoring B0 with this)
-        tARR = tARR + tshift/24.
-        if scale_flag == True: 
-                try:
-                    tARR = tARR + tshift/24 + d_tUN[0]
-                except:
-                    tARR = tARR + tshift/24. # d_tUN might not be defined if no background data
-                CMEmid = np.mean(tARR)
-                if ISfilename != False:
-                    avg_obs_B = np.mean(d_Btot[np.where(np.abs(d_tUN - CMEmid) < 2./24.)])
-        scale = 1.   
-        if (autonormVAR.get()==1) and (ISfilename !=False): 
-                cent_idx = np.where(np.abs(tARR - CMEmid) < 2./24.)[0]  
-                if len(cent_idx) > 0: 
-                    avg_FIDO_B = np.mean(obsB[cent_idx])
-                    scale = avg_obs_B / avg_FIDO_B
-                else:
-                	print('CME too short to autonormalize, reverting to B0')
-                obsBx *= scale
-                obsBy *= scale
-                obsBz *= scale
-                obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
+            tARR = tARR + tshift/24.
+            if scale_flag == True: 
+                    try:
+                        tARR = tARR + tshift/24 + d_tUN[0]
+                    except:
+                        tARR = tARR + tshift/24. # d_tUN might not be defined if no background data
+                    CMEmid = np.mean(tARR)
+                    if ISfilename != False:
+                        avg_obs_B = np.mean(d_Btot[np.where(np.abs(d_tUN - CMEmid) < 2./24.)])
+            scale = 1.   
+            if (autonormVAR.get()==1) and (ISfilename !=False): 
+                    cent_idx = np.where(np.abs(tARR - CMEmid) < 2./24.)[0]  
+                    if len(cent_idx) > 0: 
+                        avg_FIDO_B = np.mean(obsB[cent_idx])
+                        scale = avg_obs_B / avg_FIDO_B
+                    else:
+                    	print('CME too short to autonormalize, reverting to B0')
+                    obsBx *= scale
+                    obsBy *= scale
+                    obsBz *= scale
+                    obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
 
-                if canScore:
-                    scoreBx, scoreBy, scoreBz = calc_score()
-                    if canprint: print('score '+ str(totalscore))
+                    if canScore:
+                        scoreBx, scoreBy, scoreBz = calc_score()
+                        if canprint: print('score '+ str(totalscore))
         else:
+                plotCME = False
+                print ('No impact expected')
                 totalscore = 9999.
                 scoreBx, scoreBy, scoreBz = 9999., 9999., 9999.
  
@@ -444,7 +445,6 @@ def update_plot():
     setp(ax4.get_xticklabels(), visible=False)
     ax5.set_ylabel('B$_z$ (nT)')
     ax5.set_xlabel('Day of Year')
-
     if plotCME == True: 
         ax2.plot(tARR, obsB, 'r', linewidth=4)
         ax3.plot(tARR, -obsBx, 'r', linewidth=4)
