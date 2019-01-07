@@ -8,7 +8,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from matplotlib import pyplot as plt
 from matplotlib.ticker import ScalarFormatter, FormatStrFormatter
-from tkinter import *
+from Tkinter import *
 from pylab import setp
 import random 
 
@@ -72,25 +72,30 @@ def isinCME(vec_in, CME_shape):
     dists2 = (vec_in[0] - xFR)**2 + vec_in[1]**2 + (vec_in[2] - zFR)**2
     myb2 = np.min(dists2)
     minidxs = np.where(dists2 == myb2)
+    # unwrap
     minidx = minidxs[0]
     temp = thetas[np.where(dists2 == myb2)]
     mythetaT = temp[0]
+    #testing 
+    #if dists2[minidx[0]]/CME_shape[2]<1: 
+    #    print dists2[minidx]/CME_shape[2], mythetaT
     # add a second iteration to refine B
     # see which side of minidx the actual minimum is on
-    if minidx < len(dists2) - 1: # check to make sure not already at edge
-        if dists2[minidx-1] < dists2[minidx+1]: startidx = minidx - 1
-        else:  startidx = minidx + 1
-	# repeat the same procedure on the side with the acutal min
-        if dists2[minidx-1] != dists2[minidx+1]:
-            thetas2 = np.linspace(thetas[startidx], thetas[minidx], 101)
-            xFR2 = CME_shape[0] + CME_shape[1] * np.cos(thetas2)
-            zFR2 = CME_shape[3] * np.sin(thetas2)
-            dists2 = (vec_in[0] - xFR2)**2 + vec_in[1]**2 + (vec_in[2] - zFR2)**2
-            myb2 = np.min(dists2)
-            minidxs = np.where(dists2 == myb2)
-            minidx = minidxs[0]
-            temp = thetas2[np.where(dists2 == myb2)]
-            mythetaT = temp[0]
+    if len(minidx) == 1: # if perfectly symmetric can get two equi dists at back edge
+        if minidx < len(dists2) - 1: # check to make sure not already at edge
+            if dists2[minidx-1] < dists2[minidx+1]: startidx = minidx - 1
+            else:  startidx = minidx + 1
+    	# repeat the same procedure on the side with the acutal min
+            if dists2[minidx-1] != dists2[minidx+1]:
+                thetas2 = np.linspace(thetas[startidx], thetas[minidx], 101)
+                xFR2 = CME_shape[0] + CME_shape[1] * np.cos(thetas2)
+                zFR2 = CME_shape[3] * np.sin(thetas2)
+                dists2 = (vec_in[0] - xFR2)**2 + vec_in[1]**2 + (vec_in[2] - zFR2)**2
+                myb2 = np.min(dists2)
+                minidxs = np.where(dists2 == myb2)
+                minidx = minidxs[0]
+                temp = thetas2[np.where(dists2 == myb2)]
+                mythetaT = temp[0]
     myb = np.sqrt(myb2)
     CME_crossrad = CME_shape[2]
     if (myb > CME_crossrad):
@@ -126,6 +131,9 @@ def update_insitu():
     CME_shape = np.zeros(4)
     # set up CME shape as [d, a, b, c]
     shapeC = np.tan(CMEAW*dtor) / (1. + CMESRB + np.tan(CMEAW*dtor) * (CMESRA + CMESRB)) 
+    global CMEtilt # being stupid without this for some reason
+    if np.abs(CMEtilt) < 1e-3: 
+        CMEtilt = 1e-3
     dtorang = (CMElon - FFlon0) / np.sin(CMEtilt * dtor) * dtor
     CMEnose = 215. / np.sqrt((1 - (CMESRA + CMESRB) * shapeC * (1. - np.cos(dtorang)))**2 + (1 + CMESRB)**2 * shapeC**2 * np.sin(dtorang)**2)  - 10.
     CME_shape[3] = CMEnose * shapeC
@@ -170,7 +178,7 @@ def update_insitu():
                 thetaPprev = thetaP
                 if expansionToggle == 1: flagExp = True
             delThetaP = np.abs(thetaP - thetaPprev)
-            if delThetaP > 0.5: thetaP = thetaPprev
+            if (delThetaP > 0.5) and (np.abs(delThetaP < 3.1)): thetaP = thetaPprev
             thetaPprev = thetaP
 	# get the toroidal and poloidal magnetic field
         Btor = CMEB * jv(0, 2.4 * minb / CME_crossrad)
@@ -202,7 +210,7 @@ def update_insitu():
         if flagExp == False:
             CMEB *= ((CMEnose - CMEvr * dt / 7e5) / CMEnose)**2
 	# determine new lon of observer
-        FFlon += dt / 3600. / 24 / 365. * 360 
+        FFlon += dt * rotspeed
     return obsBx, obsBy, obsBz, tARR
 
 def update_plot():
@@ -335,7 +343,6 @@ def update_plot():
 
             # scale the CME to match at midpoint (ignoring B0 with this)
         tARR = tARR + tshift/24.
-        
         if scale_flag == True: 
                 try:
                     tARR = tARR + tshift/24 + d_tUN[0]
@@ -573,15 +580,22 @@ dtor  = 0.0174532925  # degrees to radians
 radeg = 57.29577951    # radians to degrees
 kmRs  = 1.0e5 / rsun # km (/s) divided by rsun (in cm)
 
+global rotspeed
+rotspeed = 0.#1./ 3600. / 24 / 365. * 360 
 
 # Get the CME number
-if len(sys.argv) < 2: sys.exit("Need an input file")
-
-input_file = sys.argv[1]
-inputs = np.genfromtxt(input_file, dtype=str)
 global my_name
-my_name = input_file[:-4]
-input_values = get_inputs(inputs)
+
+if len(sys.argv) < 2: 
+    #sys.exit("Need an input file")
+    print 'No input file, running without in situ data and starting with defaults'
+    input_values = []
+    my_name = 'temp'
+else:
+    input_file = sys.argv[1]
+    inputs = np.genfromtxt(input_file, dtype=str)
+    my_name = input_file[:-4]
+    input_values = get_inputs(inputs)
 
 global silent 
 canprint = True
@@ -708,7 +722,7 @@ eR2 = Entry(root, width=10)
 eR2.grid(column=4, row=12)
 
 Label(root, text='Update Plot', bg='gray75').grid(column=3,row=14, columnspan=2)
-draw_button = Button(root, text="Update Plot", command = update_plot, bg='gray75')
+draw_button = Button(root, command = update_plot, bg='gray75')
 draw_button.grid(row=15,column=3, columnspan=2)
 
 
@@ -723,26 +737,48 @@ quit_button.grid(row=17, column=4, columnspan=2)
 # insert values 
 if 'Sat_lat' in input_values:
     eR1.insert(0, input_values['Sat_lat'])
+else:
+    eR1.insert(0,0)
 if 'Sat_lon' in input_values:
     eR2.insert(0, input_values['Sat_lon'])
+else:
+    eR2.insert(0,0)
 if 'CME_lat' in input_values:
     e1.insert(0, input_values['CME_lat']) 
+else:
+    e1.insert(0,0)
 if 'CME_lon' in input_values:
     e2.insert(0, input_values['CME_lon'])
+else:
+    e2.insert(0,0)
 if 'CME_tilt' in input_values:
     e3.insert(0, input_values['CME_tilt']) 
+else:
+    e3.insert(0,0)
 if 'CME_AW' in input_values:
     e3b.insert(0, input_values['CME_AW'])
+else:
+    e3b.insert(0,45)
 if 'CME_Ashape' in input_values:
     e4.insert(0, input_values['CME_Ashape']) 
+else:
+    e4.insert(0, 0.75)
 if 'CME_Bshape' in input_values:
     e5.insert(0, input_values['CME_Bshape'])   
+else:
+    e5.insert(0, 0.34)
 if 'CME_vr' in input_values:
     e8.insert(0, input_values['CME_vr'])
+else:
+    e8.insert(0,440)
 if 'tshift' in input_values:
     e9.insert(0, input_values['tshift'])
+else:
+    e9.insert(0,0)
 if 'CME_B0' in input_values:
     e6.insert(0, input_values['CME_B0'])
+else:
+    e6.insert(0,25)
 if 'Launch_GUI' in input_values:
     Launch_GUI = input_values['Launch_GUI']
 else: Launch_GUI = 'True'
@@ -753,6 +789,8 @@ if 'CME_pol' in input_values:
     used_pol = input_values['CME_pol']
     if used_pol[0] == '-': CMEH = -1
     e7.insert(0, CMEH) # H
+else:
+    e7.insert(0,1)
     
 
 
