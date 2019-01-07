@@ -699,7 +699,7 @@ if 'Expansion_Model' in input_values:
     else:
         sys.exit('Expansion_Model should be None or Self-Similar')
 else:
-    expansionToggleVAR.set(0)
+    expansionToggleVAR.set(1)
 
 
 # CME start stop time
