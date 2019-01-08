@@ -350,6 +350,8 @@ def update_plot():
                     CMEmid = np.mean(tARR)
                     if ISfilename != False:
                         avg_obs_B = np.mean(d_Btot[np.where(np.abs(d_tUN - CMEmid) < 2./24.)])
+            else:
+                tARR = tARR + tshift/24.
             scale = 1.   
             if (autonormVAR.get()==1) and (ISfilename !=False): 
                     cent_idx = np.where(np.abs(tARR - CMEmid) < 2./24.)[0]  
