@@ -341,7 +341,6 @@ def update_plot():
                 tARR  = tARR[:idx2]
             obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
             # scale the CME to match at midpoint (ignoring B0 with this)
-            tARR = tARR + tshift/24.
             if scale_flag == True: 
                     try:
                         tARR = tARR + tshift/24 + d_tUN[0]
@@ -365,9 +364,9 @@ def update_plot():
                     obsBz *= scale
                     obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
 
-                    if canScore:
-                        scoreBx, scoreBy, scoreBz = calc_score()
-                        if canprint: print('score '+ str(totalscore))
+            if canScore:
+                scoreBx, scoreBy, scoreBz = calc_score()
+                if canprint: print('score '+ str(totalscore))
         else:
                 plotCME = False
                 print ('No impact expected')
@@ -668,6 +667,9 @@ if 'Autonormalize' in input_values:
         autonormVAR.set(1)
         Autonormalize = 'True'
     elif input_values['Autonormalize'] == 'False': autonormVAR.set(0)
+else:
+    autonormVAR.set(0)
+    Autonormalize = 'False'
 
 Label(root, text='Autonormalize', bg='gray75').grid(column=3, row=0, columnspan=2)
 normCheck = Checkbutton(root, bg='gray75', var=autonormVAR).grid(column=3, row=1, columnspan=2)
@@ -813,10 +815,18 @@ pad = 3
 global range_flag, scale_flag
 scale_flag = False
 range_flag = False
-if 'CME_start' in input_values:
+if ('CME_start' in input_values):  
     plotstart = CMEstart - pad/24.
+    if ('CME_stop' not in input_values):
+        print('!!!Have CME start but not stop!!!')
+        print('!!!Defaulting to duration of a day!!!')
+        print('!!!May cause error if insufficient in situ data!!!')
+        print('!!!Should not autonormalize or use score unless fix CME stop!!!')
+        CMEend = CMEstart + 1
+        eS2.insert(0, CMEend)
     plotend   = CMEend + pad/24.
     CMEmid    = 0.5 * (CMEstart + CMEend)
+
 else:
     range_flag = True
     scale_flag = True
