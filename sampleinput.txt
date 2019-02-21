@@ -15,5 +15,6 @@ CME_start:      148.80
 CME_stop:       149.71 
 Launch_GUI: True
 Autonormalize: True
-Save_Profile: True
+Save_Profile: False
 Expansion_Model: None
+Silent: False

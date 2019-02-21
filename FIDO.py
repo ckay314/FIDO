@@ -160,7 +160,6 @@ def update_insitu():
         temp = rotz(FF_sunxyz, -CMElon)
         temp2 = roty(temp, CMElat)
         FF_CMExyz = rotx(temp2, CMEtilt)
-        #print FF_CMExyz
 	# determine CME expansion and propagation
 	# calculate CME shape
         if flagExp == False:
@@ -175,8 +174,10 @@ def update_insitu():
         if flagit != -9999:
 	    # define it the first time its used
             if thetaPprev==-42: 
+                tempa = CME_shape[1]+CME_shape[2]
+                tempb = CME_shape[3]+CME_shape[2]
                 thetaPprev = thetaP
-                if expansionToggle == 1: flagExp = True
+                if expansion_model == 'None': flagExp = True
             delThetaP = np.abs(thetaP - thetaPprev)
             if (delThetaP > 0.5) and (np.abs(delThetaP < 3.1)): thetaP = thetaPprev
             thetaPprev = thetaP
@@ -213,12 +214,16 @@ def update_insitu():
         FFlon += dt * rotspeed
     return obsBx, obsBy, obsBz, tARR
 
-def update_plot():
-    global CMElat, CMElon, CMEtilt, CMEAW, CMESRA, CMESRB, CMEB0, CMEH, CMEvr, tshift, CMEstart, CMEend, CMEmid, avg_obs_B
-    global range_flag, plotstart, plotend
-    global scale_flag
-    plotCME = True
-    canScore = True
+def pullGUIvals():
+    global CMElat, CMElon, CMEtilt, CMEAW, CMESRA, CMESRB, CMEB0, CMEH, CMEvr, tshift, CMEstart, CMEend, CMEmid, plotCME
+    global expansion_model
+    expansionToggle = expansionToggleVAR.get()
+    expansion_model = 'None'
+    if expansionToggle == 0: expansion_model = 'Self-Similar'
+    global Autonormalize
+    Autonormalize = False
+    if autonormVAR.get() == 1: Autonormalize = True
+    
     try:
         CMElat = float(e1.get())
     except:
@@ -231,22 +236,9 @@ def update_plot():
         plotCME = False
     try:  
         CMEtilt = float(e3.get())
-        # originally programmed tilt to be deg clockwise from N
-        # but counterclockwise from W more common in literature
-        # rather than alter code for shape, just convert it here
-        # need to make sure positive toroidal direction is same
-        global othertilt
-        othertilt = CMEtilt
-        if CMEtilt >=-90:
-            CMEtilt = 90 - CMEtilt
-        else:
-            CMEtilt = -180 - CMEtilt
     except:
         if canprint: print("Need CME tilt")
         plotCME = False
-        
-    global expansionToggle
-    expansionToggle = expansionToggleVAR.get()
     try:
         CMEAW   = float(e3b.get())
     except:
@@ -281,7 +273,7 @@ def update_plot():
         tshift  = float(e9.get())
     except:
         tshift = 0
-    global FFlat, FFlon0
+    global FFlat, FFlon0, plotstart, plotend, pad
     try:    
         FFlat   = float(eR1.get())
     except:
@@ -294,11 +286,14 @@ def update_plot():
         FFlon0 = 0
     try:
         CMEstart = float(eS1.get())
+        plotstart = CMEstart - pad/24.
         if ISfilename != False:
             if CMEstart < minISdate:
                 print('CME_start before first in situ time')
                 plotCME = False
+                
             CMEend = float(eS2.get())
+            plotend = CMEend + pad/24.
             if CMEend > maxISdate:
                 print('CME_end before last in situ time')
                 plotCME = False
@@ -310,15 +305,33 @@ def update_plot():
             CMEend = plotend
         if canprint: print('No CME start/stop time -> no score')
         if canprint: print('Assuming CME starts at plot start')
+    
+    
+def update_plot():
+    global CMElat, CMElon, CMEtilt, CMEAW, CMESRA, CMESRB, CMEB0, CMEH, CMEvr, tshift, CMEstart, CMEend, CMEmid, avg_obs_B
+    global range_flag, plotstart, plotend
+    global scale_flag, canScore
+    plotCME = True
+    if Launch_GUI:
+        pullGUIvals()
+    # originally programmed tilt to be deg clockwise from N
+    # but counterclockwise from W more common in literature
+    # rather than alter code for shape, just convert it here
+    global othertilt
+    othertilt = CMEtilt
+    if CMEtilt >=-90:
+        CMEtilt = 90 - CMEtilt
+    else:
+        CMEtilt = -180 - CMEtilt
+          
     if plotCME==True:
         # define as globals so can use to calculate score
         global obsBx, obsBy, obsBz, obsB, tARR, totalscore
         obsBx, obsBy, obsBz, tARR = update_insitu()
         obsBx, obsBy, obsBz = np.array(obsBx), np.array(obsBy), np.array(obsBz)
-        tARR = np.array(tARR) 
-        if scale_flag == False: 
-            tshift = 24*(CMEstart + tshift/24.)
-        tARR = tARR/24.
+        tARR = np.array(tARR) # tarr in hours from 0
+        zerotime = (CMEstart + tshift/24.) # in days
+        tARR = tARR/24. # also in days
     	# find the beginning and end of the actual magnetic cloud portion of the data 
     	# check if beginning and end are equal to 0
         if np.sum(np.abs(obsBx)) > 0.:
@@ -341,18 +354,12 @@ def update_plot():
                 tARR  = tARR[:idx2]
             obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)
             # scale the CME to match at midpoint (ignoring B0 with this)
-            if scale_flag == True: 
-                    try:
-                        tARR = tARR + tshift/24 + d_tUN[0]
-                    except:
-                        tARR = tARR + tshift/24. # d_tUN might not be defined if no background data
-                    CMEmid = np.mean(tARR)
-                    if ISfilename != False:
-                        avg_obs_B = np.mean(d_Btot[np.where(np.abs(d_tUN - CMEmid) < 2./24.)])
-            else:
-                tARR = tARR + tshift/24.
+            tARR += zerotime
+            CMEmid = np.mean(tARR)
+            if ISfilename != False:
+                avg_obs_B = np.mean(d_Btot[np.where(np.abs(d_tUN - CMEmid) < 2./24.)])
             scale = 1.   
-            if (autonormVAR.get()==1) and (ISfilename !=False): 
+            if (Autonormalize==True) and (ISfilename !=False): 
                     cent_idx = np.where(np.abs(tARR - CMEmid) < 2./24.)[0]  
                     if len(cent_idx) > 0: 
                         avg_FIDO_B = np.mean(obsB[cent_idx])
@@ -524,11 +531,7 @@ def save_plot():
     f1.write('%-13s %8.2f \n' % ('CME_vr: ', CMEvr))
     f1.write('%-13s %8.2f \n' % ('CME_B0: ', CMEB0))
     f1.write('%-13s %8.2f \n' % ('CME_pol: ', CMEH))
-    try:
-            tadjust = float(e9.get())
-    except:
-            tadjust = 0.
-    f1.write('%-13s %8.2f \n' % ('tshift: ', tadjust))
+    f1.write('%-13s %8.2f \n' % ('tshift: ', tshift))
     f1.write('%-13s %8.2f \n' % ('Sat_lat: ', FFlat))
     f1.write('%-13s %8.2f \n' % ('Sat_lon: ', FFlon0))
     f1.write('%-13s %8.2f \n' % ('CME_start: ', CMEstart))
@@ -536,18 +539,15 @@ def save_plot():
     f1.write('Launch_GUI: '+ str(Launch_GUI)+  '\n')
     f1.write('Autonormalize: '+ str(Autonormalize)+  '\n')
     f1.write('Save_Profile: '+ str(Save_Profile)+  '\n')
-    if expansionToggleVAR.get() == 0:
-	    exstr = 'Self-Similar'
-    else:
-	    exstr = 'None'
-    f1.write('Expansion_Model: '+ exstr)
+    f1.write('Expansion_Model: '+ expansion_model+  '\n')
+    f1.write('Silent: '+ str(not canprint))
     f1.close()
-    
+    print tshift/24.
     if Save_Profile == True:
             f1 = open(my_name+'.dat', 'w')
             if canprint: print('saving profile') 
             for i in range(len(obsBx)):
-                f1.write('%10.5f %10.4f %10.4f %10.4f \n' % (tshift+tARR[i], obsBx[i], obsBy[i], obsBz[i]))
+                f1.write('%10.5f %10.4f %10.4f %10.4f \n' % (tARR[i], obsBx[i], obsBy[i], obsBz[i]))
             f1.close()
     
 
@@ -565,10 +565,9 @@ def get_inputs(inputs):
     return input_values
 
 
-random.seed(42)
 
-# Parameters to play with (like string for a cat)
-global FFlat, FFlon0, CMElat, CMElon, CMEtilt, CMEAW, CMESRA, CMESRB, CMEvr, CMEB0, CMEH
+# Parameters that define the simulation
+global FFlat, FFlon0, CMElat, CMElon, CMEtilt, CMEAW, CMESRA, CMESRB, CMEvr, CMEB0, CMEH, tshift, CMEstart, CMEend
 
 global tmax, dt
 tmax = 80 * 3600. # maximum time of observations
@@ -582,14 +581,14 @@ radeg = 57.29577951    # radians to degrees
 kmRs  = 1.0e5 / rsun # km (/s) divided by rsun (in cm)
 
 global rotspeed
-rotspeed = 0.#1./ 3600. / 24 / 365. * 360 
+rotspeed = 1./ 3600. / 24 / 365. * 360 
 
 # Get the CME number
 global my_name
 
 if len(sys.argv) < 2: 
     #sys.exit("Need an input file")
-    print 'No input file, running without in situ data and starting with defaults'
+    print('No input file, running without in situ data and starting with defaults')
     input_values = []
     my_name = 'temp'
 else:
@@ -598,20 +597,58 @@ else:
     my_name = input_file[:-4]
     input_values = get_inputs(inputs)
 
-global silent 
-canprint = True
-if 'Silent' in input_values: canprint = False
-    
+# Get in situ filename
+global ISfilename, canScore
+ISfilename = False
+canScore = False
+if 'insitufile' in input_values:
+    if input_values['insitufile'] != 'NONE':
+        ISfilename = input_values['insitufile']
+        canScore = True
 
+# Print things to command line?
+global canprint 
+canprint = True
+if 'Silent' in input_values: 
+    if input_values['Silent']=='True': canprint = False
 if canprint: print('Files will be saved as '), my_name
 
-# set up the GUI
-root = Tk()
-root.configure(background='gray75')
+# Pop up a GUI or just save a file
+global Launch_GUI
+Launch_GUI = False
+if 'Launch_GUI' in input_values:
+   if input_values['Launch_GUI'] == 'True': Launch_GUI = True
+   
+# Option to print a file with simulation results
+global Save_Profile
+Save_Profile = False
+if 'Save_Profile' in input_values:
+    if input_values['Save_Profile'] == 'True': Save_Profile = True
+      
+# Autonormalizing magnitude
+global Autonormalize
+Autonormalize = False
+if 'Autonormalize' in input_values:
+    if input_values['Autonormalize'] == 'True': Autonormalize = True
+    
+# Pick expansion mode
+global expansion_model
+expansion_model = 'None'
+if 'Expansion_Model' in input_values:
+    if input_values['Expansion_Model'] == 'None':
+        expansion_model = 'None'
+    elif input_values['Expansion_Model'] == 'Self-Similar':
+        expansion_model = 'Self-Similar'        
+    else:
+        sys.exit('Expansion_Model should be None or Self-Similar')
+        
+   
+# Establish a GUI root if needed
+if Launch_GUI == True:
+    root = Tk()
+    root.configure(background='gray75')
+    
 fig2 = plt.figure()
-canvas = FigureCanvasTkAgg(fig2, master=root)
-canvas.get_tk_widget().grid(row=0, column=2, rowspan=30) #.grid(row=0,column=0)
-
 # set up the panels of the figure
 ax2  = fig2.add_subplot(411)
 setp(ax2.get_xticklabels(), visible=False)
@@ -623,226 +660,175 @@ ax5  = fig2.add_subplot(414, sharex=ax2)
 plt.subplots_adjust(right=0.8, wspace=0.001, hspace=0.001)
 plt.tight_layout()
 
+# More GUI, complains if haven't def fig right above this so splitting root/canvas parts
+if Launch_GUI:
+    # Add fig to GUI canvas
+    canvas = FigureCanvasTkAgg(fig2, master=root)
+    canvas.get_tk_widget().grid(row=0, column=2, rowspan=30) #.grid(row=0,column=0)
 
-# CME parameters
-Label(root, text='CME Parameters', bg='gray75').grid(column=0,row=0, columnspan=2)
-Label(root, text='CME Lat (deg):', bg='gray75').grid(column=0, row=1)
-e1 = Entry(root, width=10)
-e1.grid(column=1,row=1)
-Label(root, text='CME Lon (deg):', bg='gray75').grid(column=0, row=2)
-e2 = Entry(root, width=10)
-e2.grid(column=1, row=2)
-Label(root, text='Tilt from W (deg):', bg='gray75').grid(column=0, row=3)
-e3 = Entry(root, width=10)
-e3.grid(column=1, row=3)
-Label(root, text='Angular Width (deg):', bg='gray75').grid(column=0, row=4)
-e3b = Entry(root, width=10)
-e3b.grid(column=1, row=4)
-Label(root, text='CME vr (km/s):', bg='gray75').grid(column=0, row=5)
-e8 = Entry(root, width=10)
-e8.grid(column=1, row=5)
-
-
-Label(root, text='Time Shift (hr):', bg='gray75').grid(column=0, row=16)
-e9 = Entry(root, width=10)
-e9.grid(column=1, row=16)
-
-
-# Torus Parameters
-Label(root, text="Torus Shape Parameters", bg='gray75').grid(column=0, row=6, columnspan=2)
-Label(root, text='A:', bg='gray75').grid(column=0, row=7)
-e4 = Entry(root, width=7)
-e4.grid(column=1, row=7)
-Label(root, text='B:', bg='gray75').grid(column=0, row=8)
-e5 = Entry(root, width=7)
-e5.grid(column=1, row=8)
+    # CME parameters
+    Label(root, text='CME Parameters', bg='gray75').grid(column=0,row=0, columnspan=2)
+    Label(root, text='CME Lat (deg):', bg='gray75').grid(column=0, row=1)
+    e1 = Entry(root, width=10)
+    e1.grid(column=1,row=1)
+    Label(root, text='CME Lon (deg):', bg='gray75').grid(column=0, row=2)
+    e2 = Entry(root, width=10)
+    e2.grid(column=1, row=2)
+    Label(root, text='Tilt from W (deg):', bg='gray75').grid(column=0, row=3)
+    e3 = Entry(root, width=10)
+    e3.grid(column=1, row=3)
+    Label(root, text='Angular Width (deg):', bg='gray75').grid(column=0, row=4)
+    e3b = Entry(root, width=10)
+    e3b.grid(column=1, row=4)
+    Label(root, text='CME vr (km/s):', bg='gray75').grid(column=0, row=5)
+    e8 = Entry(root, width=10)
+    e8.grid(column=1, row=5)
 
 
-# check button for autonormalizing magnitude
-global autonormVAR, Autonormalize
-autonormVAR = IntVar()
-Autonormalize = 'False'
-if 'Autonormalize' in input_values:
-    if input_values['Autonormalize'] == 'True': 
-        autonormVAR.set(1)
-        Autonormalize = 'True'
-    elif input_values['Autonormalize'] == 'False': autonormVAR.set(0)
-else:
+    Label(root, text='Time Shift (hr):', bg='gray75').grid(column=0, row=16)
+    e9 = Entry(root, width=10)
+    e9.grid(column=1, row=16)
+
+
+    # Torus Parameters
+    Label(root, text="Torus Shape Parameters", bg='gray75').grid(column=0, row=6, columnspan=2)
+    Label(root, text='A:', bg='gray75').grid(column=0, row=7)
+    e4 = Entry(root, width=7)
+    e4.grid(column=1, row=7)
+    Label(root, text='B:', bg='gray75').grid(column=0, row=8)
+    e5 = Entry(root, width=7)
+    e5.grid(column=1, row=8)
+    
+    # Flux rope params
+    Label(root, text='Force Free Parameters', bg='gray75').grid(column=0, row=11, columnspan=2)
+    Label(root, text='B0:', bg='gray75').grid(column=0, row=12)
+    e6 = Entry(root, width=10)
+    e6.grid(column=1, row=12)
+    Label(root, text='Pol. Direction:', bg='gray75').grid(column=0, row=13)
+    e7 = Entry(root, width=10)
+    e7.grid(column=1, row=13)
+    
+
+    # check button for autonormalizing magnitude
+    global autonormVAR  
+    autonormVAR = IntVar()
     autonormVAR.set(0)
-    Autonormalize = 'False'
+    if Autonormalize: autonormVAR.set(1)
+    Label(root, text='Autonormalize', bg='gray75').grid(column=3, row=0, columnspan=2)
+    normCheck = Checkbutton(root, bg='gray75', var=autonormVAR).grid(column=3, row=1, columnspan=2)
 
-Label(root, text='Autonormalize', bg='gray75').grid(column=3, row=0, columnspan=2)
-normCheck = Checkbutton(root, bg='gray75', var=autonormVAR).grid(column=3, row=1, columnspan=2)
-
-global Save_Profile
-Save_Profile = False
-if 'Save_Profile' in input_values:
-    if input_values['Save_Profile'] == 'True':
-        Save_Profile = True
-    
-
-Label(root, text='Force Free Parameters', bg='gray75').grid(column=0, row=11, columnspan=2)
-Label(root, text='B0:', bg='gray75').grid(column=0, row=12)
-e6 = Entry(root, width=10)
-e6.grid(column=1, row=12)
-Label(root, text='Pol. Direction:', bg='gray75').grid(column=0, row=13)
-e7 = Entry(root, width=10)
-e7.grid(column=1, row=13)
-
-global expansionToggleVAR
-expansionToggleVAR = IntVar()
-Label(root, text='Expansion Profile:', bg='gray75').grid(row=2, column=3,columnspan=2)
-Label(root, text='Self-Similar', bg='gray75').grid(row=3, column=3,columnspan=1)
-Radiobutton(root, variable=expansionToggleVAR, value=0, bg='gray75').grid(column=3,row=4)
-Label(root, text='None', bg='gray75').grid(row=3, column=4,columnspan=1)
-Radiobutton(root, variable=expansionToggleVAR, value=1, bg='gray75').grid(column=4,row=4)
-
-if 'Expansion_Model' in input_values:
-    if input_values['Expansion_Model'] == 'None':
-        expansionToggleVAR.set(1)
-    elif input_values['Expansion_Model'] == 'Self-Similar':
-        expansionToggleVAR.set(0)
-    else:
-        sys.exit('Expansion_Model should be None or Self-Similar')
-else:
+    global expansionToggleVAR
+    expansionToggleVAR = IntVar()
+    Label(root, text='Expansion Profile:', bg='gray75').grid(row=2, column=3,columnspan=2)
+    Label(root, text='Self-Similar', bg='gray75').grid(row=3, column=3,columnspan=1)
+    Radiobutton(root, variable=expansionToggleVAR, value=0, bg='gray75').grid(column=3,row=4)
+    Label(root, text='None', bg='gray75').grid(row=3, column=4,columnspan=1)
+    Radiobutton(root, variable=expansionToggleVAR, value=1, bg='gray75').grid(column=4,row=4)
     expansionToggleVAR.set(1)
+    if expansion_model == "Self-Similar": expansionToggleVAR.set(0)
+
+    # CME start stop time
+    Label(root, text='Observed CME Boundaries', bg='gray75').grid(column=3,row=5, columnspan=2)
+    Label(root, text='Start (DOY)', bg='gray75').grid(column=3,row=6)
+    eS1 = Entry(root, width=10)
+    eS1.grid(column=4, row=6)
+    Label(root, text='Stop (DOY)', bg='gray75').grid(column=3,row=7)
+    eS2 = Entry(root, width=10)
+    eS2.grid(column=4, row=7)
 
 
-# CME start stop time
-Label(root, text='Observed CME Boundaries', bg='gray75').grid(column=3,row=5, columnspan=2)
-Label(root, text='Start (DOY)', bg='gray75').grid(column=3,row=6)
-eS1 = Entry(root, width=10)
-eS1.grid(column=4, row=6)
-Label(root, text='Stop (DOY)', bg='gray75').grid(column=3,row=7)
-eS2 = Entry(root, width=10)
-eS2.grid(column=4, row=7)
+    # FIDO parameters
+    Label(root, text='FIDO position', bg='gray75').grid(column=3,row=10, columnspan=2)
+    Label(root, text='FIDO Lat:', bg='gray75').grid(column=3, row=11)
+    eR1 = Entry(root, width=10)
+    eR1.grid(column=4, row=11)
+    Label(root, text='FIDO Lon:', bg='gray75').grid(column=3, row=12)
+    eR2 = Entry(root, width=10)
+    eR2.grid(column=4, row=12)
 
+    Label(root, text='Update Plot', bg='gray75').grid(column=3,row=14, columnspan=2)
+    draw_button = Button(root, command = update_plot, bg='gray75')
+    draw_button.grid(row=15,column=3, columnspan=2)
 
-# FIDO parameters
-Label(root, text='FIDO position', bg='gray75').grid(column=3,row=10, columnspan=2)
-Label(root, text='FIDO Lat:', bg='gray75').grid(column=3, row=11)
-eR1 = Entry(root, width=10)
-eR1.grid(column=4, row=11)
-Label(root, text='FIDO Lon:', bg='gray75').grid(column=3, row=12)
-eR2 = Entry(root, width=10)
-eR2.grid(column=4, row=12)
+    Label(root, text='Save Plot', bg='gray75').grid(column=3,row=16, columnspan=1)
+    print_button = Button(root, bg='black', command = save_plot)
+    print_button.grid(row=17,column=3, columnspan=1)
 
-Label(root, text='Update Plot', bg='gray75').grid(column=3,row=14, columnspan=2)
-draw_button = Button(root, command = update_plot, bg='gray75')
-draw_button.grid(row=15,column=3, columnspan=2)
+    Label(root, text='Quit', bg='gray75').grid(column=4,row=16, columnspan=1)
+    quit_button = Button(root, command = root.quit)
+    quit_button.grid(row=17, column=4, columnspan=2)
 
+# Set sim params to default, replace with any given values
+FFlat    = 0. 
+FFlon0   = 0.
+CMElat   = 0.
+CMElon   = 0.
+CMEtilt  = 0.
+CMEAW    = 45. 
+CMESRA   = 0.75
+CMESRB   = 0.35
+CMEvr    = 440.
+CMEB0    = 25.
+CMEH     = 1
+tshift   = 0.
+CMEstart = 0.
+CMEend   = 0.
 
-Label(root, text='Save Plot', bg='gray75').grid(column=3,row=16, columnspan=1)
-print_button = Button(root, bg='black', command = save_plot)
-print_button.grid(row=17,column=3, columnspan=1)
+if 'Sat_lat' in input_values: FFlat = float(input_values['Sat_lat'])
+if 'Sat_lon' in input_values: FFlon0 = float(input_values['Sat_lon'])
+if 'CME_lat' in input_values: CMElat = float(input_values['CME_lat']) 
+if 'CME_lon' in input_values: CMElon = float(input_values['CME_lon'])
+if 'CME_tilt' in input_values: CMEtilt = float(input_values['CME_tilt']) 
+if 'CME_AW' in input_values: CMEAW = float(input_values['CME_AW'])
+if 'CME_Ashape' in input_values: CMESRA = float(input_values['CME_Ashape'])
+if 'CME_Bshape' in input_values: CMESRB = float(input_values['CME_Bshape'])   
+if 'CME_vr' in input_values:CMEvr = float(input_values['CME_vr'])
+if 'tshift' in input_values: tshift = float(input_values['tshift'])
+if 'CME_B0' in input_values: CMEB0 =float(input_values['CME_B0'])
+if "CME_pol" in input_values: 
+    if input_values['CME_pol'][0] == '-': CMEH = -1
+if 'CME_start' in input_values: CMEstart =float(input_values['CME_start'])
+if 'CME_stop' in input_values: CMEend = float(input_values['CME_stop'])
 
-Label(root, text='Quit', bg='gray75').grid(column=4,row=16, columnspan=1)
-quit_button = Button(root, command = root.quit)
-quit_button.grid(row=17, column=4, columnspan=2)
-
-# insert values 
-if 'Sat_lat' in input_values:
-    eR1.insert(0, input_values['Sat_lat'])
-else:
-    eR1.insert(0,0)
-if 'Sat_lon' in input_values:
-    eR2.insert(0, input_values['Sat_lon'])
-else:
-    eR2.insert(0,0)
-if 'CME_lat' in input_values:
-    e1.insert(0, input_values['CME_lat']) 
-else:
-    e1.insert(0,0)
-if 'CME_lon' in input_values:
-    e2.insert(0, input_values['CME_lon'])
-else:
-    e2.insert(0,0)
-if 'CME_tilt' in input_values:
-    e3.insert(0, input_values['CME_tilt']) 
-else:
-    e3.insert(0,0)
-if 'CME_AW' in input_values:
-    e3b.insert(0, input_values['CME_AW'])
-else:
-    e3b.insert(0,45)
-if 'CME_Ashape' in input_values:
-    e4.insert(0, input_values['CME_Ashape']) 
-else:
-    e4.insert(0, 0.75)
-if 'CME_Bshape' in input_values:
-    e5.insert(0, input_values['CME_Bshape'])   
-else:
-    e5.insert(0, 0.35)
-if 'CME_vr' in input_values:
-    e8.insert(0, input_values['CME_vr'])
-else:
-    e8.insert(0,440)
-if 'tshift' in input_values:
-    e9.insert(0, input_values['tshift'])
-else:
-    e9.insert(0,0)
-if 'CME_B0' in input_values:
-    e6.insert(0, input_values['CME_B0'])
-else:
-    e6.insert(0,25)
-if 'Launch_GUI' in input_values:
-    Launch_GUI = input_values['Launch_GUI']
-else: Launch_GUI = 'True'
-
-global CMEH
-CMEH = 1
-if 'CME_pol' in input_values:    
-    used_pol = input_values['CME_pol']
-    if used_pol[0] == '-': CMEH = -1
-    e7.insert(0, CMEH) # H
-else:
-    e7.insert(0,1)
-    
-
-
-# get the in situ information
-global CMEstart, CMEend, CMEmid, plotstart, plotend
-
-if 'CME_start' in input_values:  
-    CMEstart = float(input_values['CME_start'])
-    eS1.insert(0, CMEstart)
-if 'CME_stop' in input_values:  
-    CMEend = float(input_values['CME_stop'])
-    eS2.insert(0, CMEend)
-
-pad = 3
-
+# see if we have IS and start/stop -> can calc score
+# otherwise fix so will plot and flag not to score
+global CMEmid, plotstart, plotend
 global range_flag, scale_flag
+pad = 3
 scale_flag = False
 range_flag = False
-if ('CME_start' in input_values):  
-    plotstart = CMEstart - pad/24.
-    if ('CME_stop' not in input_values):
-        print('!!!Have CME start but not stop!!!')
-        print('!!!Defaulting to duration of a day!!!')
-        print('!!!May cause error if insufficient in situ data!!!')
-        print('!!!Should not autonormalize or use score unless fix CME stop!!!')
-        CMEend = CMEstart + 1
-        eS2.insert(0, CMEend)
-    plotend   = CMEend + pad/24.
-    CMEmid    = 0.5 * (CMEstart + CMEend)
+plotstart = CMEstart - pad/24.
+if CMEend == 0:
+    print('!!!Have CME start but not stop!!!')
+    print('!!!Defaulting to duration of a day!!!')
+    print('!!!May cause error if insufficient in situ data!!!')
+    print('!!!Should not autonormalize or use score unless fix CME stop!!!')
+    CMEend = CMEstart + 1
+plotend   = CMEend + pad/24.
+CMEmid    = 0.5 * (CMEstart + CMEend)
 
-else:
-    range_flag = True
-    scale_flag = True
+# insert values if using GUI, otherwise just set globals
+if Launch_GUI:
+    eR1.insert(0, FFlat)
+    eR2.insert(0, FFlon0)
+    e1.insert(0, CMElat) 
+    e2.insert(0, CMElon)
+    e3.insert(0, CMEtilt) 
+    e3b.insert(0, CMEAW)
+    e4.insert(0, CMESRA) 
+    e5.insert(0, CMESRB)   
+    e8.insert(0, CMEvr)
+    e9.insert(0, tshift)
+    e6.insert(0, CMEB0)
+    e7.insert(0, CMEH)
+    eS1.insert(0, CMEstart)
+    eS2.insert(0, CMEend)
+
+
+
 
 # read in data (coded to work with ACE)
 global d_t, d_Btot, d_Bx, d_By, d_Bz, Wind_t, Wind_B, Wind_Bx, Wind_By, Wind_Bz
-
-global ISfilename
-if 'insitufile' in input_values:
-    if input_values['insitufile'] != 'NONE':
-        ISfilename = input_values['insitufile']
-    else:
-        ISfilename = False
-else: 
-    ISfilename = False
-    #sys.exit('Add insitufile to input file')
 
 if (ISfilename != False):
     # Don't need skip_header for prepped daya
@@ -883,7 +869,7 @@ else:
 # run the initial conditions
 update_plot()
 
-if Launch_GUI != 'False':
+if Launch_GUI != False:
 	root.mainloop()
 	root.quit()
 else:
