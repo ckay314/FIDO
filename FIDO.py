@@ -212,6 +212,7 @@ def update_insitu():
             CMEB *= ((CMEnose - CMEvr * dt / 7e5) / CMEnose)**2
 	# determine new lon of observer
         FFlon += dt * rotspeed
+    print FFlon, rotspeed
     return obsBx, obsBy, obsBz, tARR
 
 def pullGUIvals():
@@ -323,7 +324,7 @@ def update_plot():
         CMEtilt = 90 - CMEtilt
     else:
         CMEtilt = -180 - CMEtilt
-          
+        
     if plotCME==True:
         # define as globals so can use to calculate score
         global obsBx, obsBy, obsBz, obsB, tARR, totalscore
@@ -452,7 +453,6 @@ def update_plot():
     ax4.set_ylabel('B$_y$ (nT)')
     setp(ax4.get_xticklabels(), visible=False)
     ax5.set_ylabel('B$_z$ (nT)')
-    ax5.set_xlabel('Day of Year')
     if plotCME == True: 
         ax2.plot(tARR, obsB, 'r', linewidth=4)
         ax3.plot(tARR, -obsBx, 'r', linewidth=4)
@@ -462,7 +462,40 @@ def update_plot():
             ax2.annotate('%0.2f'%(totalscore), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
             ax3.annotate('%0.2f'%(scoreBx), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')
             ax4.annotate('%0.2f'%(scoreBy), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
-            ax5.annotate('%0.2f'%(scoreBz), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
+            ax5.annotate('%0.2f'%(scoreBz), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')  
+    
+    # indices calculation - first figure out rotating to GSM
+    if (plotCME == True) and (show_indices == True):
+        fracyear = CMEstart / 365.
+        rotang = 23.856 * np.sin(6.289 * fracyear + 0.181) + 8.848
+        GSMBx = []
+        GSMBy = []
+        GSMBz = []
+        #print('Rotating by '+str(rotang)+' to GSM')
+        for i in range(len(obsB)):
+            vec = [-obsBx[i], -obsBy[i], obsBz[i]]
+            GSMvec = rotx(vec, -rotang)
+            GSMBx.append(GSMvec[0])
+            GSMBy.append(GSMvec[1])
+            GSMBz.append(GSMvec[2])
+        # calculate Kp 
+        GSMBy = np.array(GSMBy)
+        GSMBz = np.array(GSMBz)
+        Bt = np.sqrt(GSMBy**2 + GSMBz**2)
+        thetac = np.arctan2(np.abs(GSMBy), GSMBz)
+        dphidt = np.power(CMEvr, 4/3.) * np.power(Bt, 2./3.) * np.power(np.sin(thetac/2),8/3.) 
+        # Emmons 2013 expression for Kp
+        #Kp = 0.0002947* dphidt + 1
+        # Mays/Savani expression, better behaved for high Kp
+        Kp = 9.5 - np.exp(2.17676 - 5.2001e-5*dphidt)
+        ax3.plot(tARR, GSMBx, 'b--', linewidth=4, zorder=0)
+        ax4.plot(tARR, GSMBy, 'b--', linewidth=4, zorder=0)
+        ax5.plot(tARR, GSMBz, 'b--', linewidth=4, zorder=0)
+        ax6.plot(tARR, Kp, 'b', linewidth=4)
+        ax6.plot([CMEstart, CMEstart], [0, 2+np.max(Kp)], 'k--', linewidth=2)
+        ax6.plot([CMEend, CMEend], [0, 2+np.max(Kp)], 'k--', linewidth=2)
+        ax6.set_ylim([0, np.max(Kp)+2])
+      
     
     scl = 1.25
     ax2.set_ylim([0,scl*maxBtot])
@@ -472,6 +505,14 @@ def update_plot():
     ax2.set_xlim([plotstart, plotend])
     ax2.xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
     plt.subplots_adjust(right=0.8, wspace=0.001, hspace=0.25)
+    # fix the bottom plot if added the indices plot
+    if show_indices: 
+        plt.subplots_adjust(hspace=0.05)
+        setp(ax5.get_xticklabels(), visible=False)
+        ax6.set_xlabel('Day of Year')
+        ax6.set_ylabel('Kp Index')
+    else:
+        ax5.set_xlabel('Day of Year')
     plt.tight_layout()
     plt.subplots_adjust(top=0.94)
     plt.gcf().canvas.draw()
@@ -540,7 +581,8 @@ def save_plot():
     f1.write('Autonormalize: '+ str(Autonormalize)+  '\n')
     f1.write('Save_Profile: '+ str(Save_Profile)+  '\n')
     f1.write('Expansion_Model: '+ expansion_model+  '\n')
-    f1.write('Silent: '+ str(not canprint))
+    f1.write('Silent: '+ str(not canprint)+ '\n')
+    f1.write('Indices: '+ str(show_indices))
     f1.close()
     print tshift/24.
     if Save_Profile == True:
@@ -554,7 +596,7 @@ def save_plot():
 def get_inputs(inputs):
     # take a file with unsorted input values and return a dictionary.
     # variable names have to match their names below
-    possible_vars = ['insitufile', 'Sat_lat', 'Sat_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'Autonormalize', 'Launch_GUI', 'Save_Profile', 'Expansion_Model', 'Silent']
+    possible_vars = ['insitufile', 'Sat_lat', 'Sat_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'Autonormalize', 'Launch_GUI', 'Save_Profile', 'Expansion_Model', 'Silent', 'Indices']
     
     # if matches add to dictionary
     input_values = {}
@@ -642,6 +684,14 @@ if 'Expansion_Model' in input_values:
     else:
         sys.exit('Expansion_Model should be None or Self-Similar')
         
+# Determine if we are plotting kp index
+global show_indices
+show_indices = False
+if 'Indices' in input_values:
+    if input_values['Indices'] == 'True':
+        show_indices = True
+
+        
    
 # Establish a GUI root if needed
 if Launch_GUI == True:
@@ -649,15 +699,26 @@ if Launch_GUI == True:
     root.configure(background='gray75')
     
 fig2 = plt.figure()
-# set up the panels of the figure
-ax2  = fig2.add_subplot(411)
+# set up the panels of the figure depending on whether we 
+# want to show Kp or not
+if show_indices == False:
+    ax2  = fig2.add_subplot(411)
+    ax3  = fig2.add_subplot(412, sharex=ax2)
+    ax4  = fig2.add_subplot(413, sharex=ax2)
+    ax5  = fig2.add_subplot(414, sharex=ax2)
+else:
+    ax2  = fig2.add_subplot(511)
+    ax3  = fig2.add_subplot(512, sharex=ax2)
+    ax4  = fig2.add_subplot(513, sharex=ax2)
+    ax5  = fig2.add_subplot(514, sharex=ax2)
+    ax6  = fig2.add_subplot(515, sharex=ax2)
+    setp(ax5.get_xticklabels(), visible=False)
+    
 setp(ax2.get_xticklabels(), visible=False)
-ax3  = fig2.add_subplot(412, sharex=ax2)
 setp(ax3.get_xticklabels(), visible=False)
-ax4  = fig2.add_subplot(413, sharex=ax2)
 setp(ax4.get_xticklabels(), visible=False)
-ax5  = fig2.add_subplot(414, sharex=ax2)
-plt.subplots_adjust(right=0.8, wspace=0.001, hspace=0.001)
+    
+plt.subplots_adjust(right=0.8, wspace=0.001, hspace=0.0001)
 plt.tight_layout()
 
 # More GUI, complains if haven't def fig right above this so splitting root/canvas parts
