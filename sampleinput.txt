@@ -14,8 +14,9 @@ Sat_lon:        303.66
 CME_start:      148.80 
 CME_stop:       149.71 
 Launch_GUI: True
+No_Plot: False
 Autonormalize: True
-Save_Profile: False
+Save_Profile: True
 Expansion_Model: None
 Silent: False
 Indices: True
