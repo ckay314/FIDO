@@ -261,16 +261,19 @@ def update_insitu(inps):
         
     return Bout, tARR, isHit
 
-def reScale(Bout, tARR):       
+def reScale(Bout, tARR, CMEstart, CMEend):       
     obsB = Bout[3] 
+    CMEmid    = 0.5 * (CMEstart + CMEend)
     avg_obs_B = np.mean(d_Btot[np.where(np.abs(d_tUN - CMEmid) < 2./24.)])
-    cent_idx = np.where(np.abs(tARR - CMEmid) < 2./24.)[0]  
+    cent_idx = np.where(np.abs(tARR - CMEmid) < 2./24.)[0] 
+    #scale = 1 
     if len(cent_idx) > 0: 
         avg_FIDO_B = np.mean(obsB[cent_idx])
         scale = avg_obs_B / avg_FIDO_B
+        Bout = Bout * scale
     else:
         print('CME too short to autonormalize, reverting to B0')
-    Bout = Bout * scale
+    
     #obsBy *= scale
     #obsBz *= scale
     #obsB = np.sqrt(obsBx**2 + obsBy**2 + obsBz**2)                                       
@@ -382,25 +385,26 @@ def calc_indices(Bout, CMEstart, CMEv):
     return Kp, BoutGSM
     
 def update_fig(Bout, tARR, scores, axes, hasData, isHit, CMEstart, CMEend):
-    Bobs = [d_Btot, d_Bx, d_By, d_Bz]
-    Bsim = [Bout[3], -Bout[0], -Bout[1], Bout[2]]
+    #Bobs = [d_Btot, d_Bx, d_By, d_Bz]
+    #Bsim = [Bout[3], -Bout[0], -Bout[1], Bout[2]]
     for ax in axes: ax.clear()
     mins = [9999,9999,9999,9999]
     maxs = [-9999,-9999,-9999,-9999]
     if hasData:
+        Bobs = [d_Btot, d_Bx, d_By, d_Bz]
         for i in range(4):
             axes[i].plot(d_tUN, Bobs[i], 'k', linewidth=4)
             mins[i] = np.min(Bobs[i])
             maxs[i] = np.max(Bobs[i])
             plotstart, plotend = np.min(d_tUN), np.max(d_tUN)
     if isHit:
+        Bsim = [Bout[3], -Bout[0], -Bout[1], Bout[2]]
         for i in range(4):
             axes[i].plot(tARR, Bsim[i], 'r', linewidth=4)
             if mins[i] > np.min(Bsim[i]): mins[i] = np.min(Bsim[i])
-            if maxs[i] < np.max(Bsim[i]): mins[i] = np.max(Bsim[i])
+            if maxs[i] < np.max(Bsim[i]): maxs[i] = np.max(Bsim[i])
             if not hasData:
                 plotstart, plotend = np.min(tARR)-0.2, np.max(tARR)+0.2
-            
     # put B mag min back at zero and set ranges to sym about zero
     mins[0] = 0 
     for i in range(3):
@@ -415,11 +419,12 @@ def update_fig(Bout, tARR, scores, axes, hasData, isHit, CMEstart, CMEend):
         axes[i].set_ylim([scl*mins[i], scl*maxs[i]])
     axes[0].set_xlim([plotstart, plotend])
     
-    # add scores on the figure    
-    axes[0].annotate('%0.2f'%(scores[3]), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
-    axes[1].annotate('%0.2f'%(scores[0]), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')
-    axes[2].annotate('%0.2f'%(scores[1]), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
-    axes[3].annotate('%0.2f'%(scores[2]), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
+    # add scores on the figure  
+    if scores[0] != 9999:  
+        axes[0].annotate('%0.2f'%(scores[3]), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
+        axes[1].annotate('%0.2f'%(scores[0]), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')
+        axes[2].annotate('%0.2f'%(scores[1]), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
+        axes[3].annotate('%0.2f'%(scores[2]), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
         
     # Labels
     axes[0].set_ylabel('B (nT)')
@@ -429,7 +434,7 @@ def update_fig(Bout, tARR, scores, axes, hasData, isHit, CMEstart, CMEend):
     axes[2].set_ylabel('B$_y$ (nT)')
     setp(axes[2].get_xticklabels(), visible=False)
     axes[3].set_ylabel('B$_z$ (nT)')
-    plt.subplots_adjust(right=0.8, wspace=0.001, hspace=0.25)
+    plt.subplots_adjust(right=0.8, wspace=0.001, hspace=0.25, bottom=0.12)
     if not show_indices: axes[3].set_xlabel('Day of Year')
     plt.subplots_adjust(top=0.94)
     plt.gcf().canvas.draw()
@@ -456,23 +461,26 @@ def run_case(inps):
     CMEstart = inps[12]
     CMEend = inps[13]
     
+    global Bout, tARR
     # run the simulation    
     Bout, tARR, isHit = update_insitu(inps)
     
     # execute extra functions as needed
     if isHit:
-        # Autonormalize
-        if Autonormalize==True:
-            Bout = reScale(Bout, tARR)
-        # Calculate score
-        scores = calc_score(Bout, tARR, CMEstart, CMEend)
-        if canprint: print('score '+ str(scores[3])) 
+        if ISfilename !=False:
+            # Autonormalize
+            if Autonormalize==True:
+                Bout = reScale(Bout, tARR, inps[12], inps[13])
+            # Calculate score
+            scores = calc_score(Bout, tARR, CMEstart, CMEend)
+            if canprint: print('score '+ str(scores[3])) 
+        else:
+            scores = [9999, 9999, 9999, 9999]
         # Calculate Kp
         if show_indices:
             Kp, BoutGSM = calc_indices(Bout, CMEstart, inps[8])
     else:
         if canprint: print ('No impact expected')
-        scores = [9999, 9999, 9999, 9999]
 
     if not NoPlot:
         update_fig(Bout, tARR, scores, axes, canScore, isHit, CMEstart, CMEend)
@@ -514,7 +522,7 @@ def save_plot(inps, Bout, tARR):
         f1 = open(my_name+'.dat', 'w')
         if canprint: print('saving profile') 
         for i in range(len(tARR)):
-            f1.write('%10.5f %10.4f %10.4f %10.4f \n' % (tARR[i], Bout[0][i], Bout[1][i], Bout[2][i]))
+            f1.write('%10.5f %10.4f %10.4f %10.4f \n' % (tARR[i], -Bout[0][i], -Bout[1][i], Bout[2][i]))
         f1.close()
         # add a Kp file? or just within other?    
     
@@ -751,7 +759,7 @@ def setupGUI(root, fig, axes, inps):
     eR2.grid(column=4, row=12)
 
     Label(root, text='Save Plot', bg='gray75').grid(column=3,row=16, columnspan=1)
-    print_button = Button(root, bg='black', command = save_plot)
+    print_button = Button(root, bg='black', command = lambda: save_plot(inps, Bout, tARR))
     print_button.grid(row=17,column=3, columnspan=1)
 
     Label(root, text='Quit', bg='gray75').grid(column=4,row=16, columnspan=1)
@@ -781,10 +789,70 @@ def setupGUI(root, fig, axes, inps):
 def rerun():
     newinps, flagged = pullGUIvals()
     if not flagged: 
+        checkStartStop(newinps)
         run_case(newinps)
     else:
         print('Fix CME start/stop to run')
     
+
+def checkStartStop(inps):
+    global CMEmid, plotstart, plotend
+    CMEstart, CMEend = inps[12], inps[13]
+    pad = 3
+    plotstart = 0
+    if CMEstart != 0:
+        plotstart = CMEstart - pad/24.
+    if (CMEend == 0) and  canprint:
+        print('!!!Have CME start but not stop!!!')
+        print('!!!Defaulting to duration of a day!!!')
+        print('!!!May cause error if insufficient in situ data!!!')
+        print('!!!Should not autonormalize or use score unless fix CME stop!!!')
+        CMEend = CMEstart + 1
+        inps[13] = CMEend
+    plotend   = CMEend + pad/24.
+    
+
+def setupObsData(inps):
+    # see if we have IS and start/stop -> can calc score
+    # otherwise fix so will plot and flag not to score
+    data = np.genfromtxt(ISfilename, dtype=np.float, skip_header=44)
+    # if have no given start/stop, set equal to begining 
+    global plotstart, plotend
+    if plotstart == 0:
+        plotstart += data[0,0] 
+        inps[12] += data[0,0]
+        plotend  += data[0,0]
+        inps[13]   += data[0,0]
+    i_date = int(plotstart)
+    i_hour = int(plotstart % 1 * 24)
+    f_date = int(plotend) 
+    f_hour = int(plotend % 1 % 1 * 24)
+    # determine the initial and final index of the desired time period
+    try:
+        iidx = np.min(np.where(data[:,0] >= plotstart))
+    except:
+        sys.exit('CME_start outside in situ data range')
+    try:
+        fidx = np.max(np.where(data[:,0] <= plotend))
+    except:
+        sys.exit('CME_stop outside in situ data range')
+    global d_Bx, d_By, d_Bz, d_Btot
+    d_fracdays = data[iidx:fidx+1,0]
+    d_Bx = data[iidx:fidx+1,1]
+    d_By = data[iidx:fidx+1,2]
+    d_Bz = data[iidx:fidx+1,3]
+    d_Btot = np.sqrt(d_Bx**2 + d_By**2 + d_Bz**2)
+    d_t = (d_fracdays - d_fracdays[0]) * 24
+    global d_tUN
+    d_tUN = d_fracdays
+    global minISdate, maxISdate
+    minISdate, maxISdate = np.min(d_tUN), np.max(d_tUN)
+    # calculate the average magnetic field in the middle, used to normalize out B0
+    CMEmid    = 0.5 * (inps[12] + inps[13])
+    global avg_obs_B
+    avg_obs_B = np.mean(d_Btot[np.where(np.abs(d_tUN - CMEmid) < 2./24.)])
+
+
 def runFIDO():
     # read in the text file and grab labeled inputs
     input_values = readinputfile()
@@ -808,70 +876,9 @@ def runFIDO():
         # for now unpack until fix rest of code
         #global ax2,ax3,ax4,ax5,ax6
         #ax2,ax3,ax4,ax5,ax6 = axes[0],axes[1],axes[2],axes[3],axes[4]
-            
-
     
-    # see if we have IS and start/stop -> can calc score
-    # otherwise fix so will plot and flag not to score
-    global CMEmid, plotstart, plotend
-    global range_flag, scale_flag
-    CMEstart, CMEend = inps[12], inps[13]
-    pad = 3
-    scale_flag = False
-    range_flag = False
-    plotstart = CMEstart - pad/24.
-    if (CMEend == 0) and  canprint:
-        print('!!!Have CME start but not stop!!!')
-        print('!!!Defaulting to duration of a day!!!')
-        print('!!!May cause error if insufficient in situ data!!!')
-        print('!!!Should not autonormalize or use score unless fix CME stop!!!')
-        CMEend = CMEstart + 1
-    plotend   = CMEend + pad/24.
-    CMEmid    = 0.5 * (CMEstart + CMEend)
-
-
-
-
-    # read in data (coded to work with ACE)
-    global d_t, d_Btot, d_Bx, d_By, d_Bz, Wind_t, Wind_B, Wind_Bx, Wind_By, Wind_Bz
-
-    if (ISfilename != False):
-        # Don't need skip_header for prepped daya
-        data = np.genfromtxt(ISfilename, dtype=np.float, skip_header=44)
-        if (range_flag==False):
-            i_date = int(plotstart)
-            i_hour = int(plotstart % 1 * 24)
-            f_date = int(plotend) 
-            f_hour = int(plotend % 1 % 1 * 24)
-            # determine the initial and final index of the desired time period
-            try:
-                iidx = np.min(np.where(data[:,0] >= plotstart))
-            except:
-                sys.exit('CME_start outside in situ data range')
-            try:
-                fidx = np.max(np.where(data[:,0] <= plotend))
-            except:
-                sys.exit('CME_stop outside in situ data range')
-        else:
-            iidx = 0
-            fidx = -2
-        d_fracdays = data[iidx:fidx+1,0]
-        d_Bx = data[iidx:fidx+1,1]
-        d_By = data[iidx:fidx+1,2]
-        d_Bz = data[iidx:fidx+1,3]
-        d_Btot = np.sqrt(d_Bx**2 + d_By**2 + d_Bz**2)
-        d_t = (d_fracdays - d_fracdays[0]) * 24
-        global d_tUN
-        d_tUN = d_fracdays
-        global minISdate, maxISdate
-        minISdate, maxISdate = np.min(d_tUN), np.max(d_tUN)
-        # calculate the average magnetic field in the middle, used to normalize out B0
-        global avg_obs_B
-        if range_flag == False:
-            avg_obs_B = np.mean(d_Btot[np.where(np.abs(d_tUN - CMEmid) < 2./24.)])
-    else:
-        d_Btot, d_Bx, d_By, d_Bz = 0., 0., 0., 0.
-    
+    checkStartStop(inps)
+    if ISfilename!=False: setupObsData(inps)    
     
     # set up GUI with figure
     if Launch_GUI:
