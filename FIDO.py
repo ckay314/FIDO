@@ -374,7 +374,7 @@ def calc_indices(Bout, CMEstart, CMEv):
     GSMBz = []
     #print('Rotating by '+str(rotang)+' to GSM')
     for i in range(len(Bout[0])):
-        vec = [-Bout[0][i], -Bout[1][i], Bout[2][i]]
+        vec = [Bout[0][i], Bout[1][i], Bout[2][i]]
         GSMvec = rotx(vec, -rotang)
         GSMBx.append(GSMvec[0])
         GSMBy.append(GSMvec[1])
@@ -420,8 +420,9 @@ def update_fig(Bout, tARR, scores, axes, hasData, isHit, CMEstart, CMEend):
     # add start/stop lines and set figure limits
     scl = 1.25
     for i in range(4):  
-        axes[i].plot([CMEstart, CMEstart], [1.3*mins[i], 1.3*maxs[i]], 'k--', linewidth=2)
-        axes[i].plot([CMEend, CMEend], [1.3*mins[i], 1.3*maxs[i]], 'k--', linewidth=2)
+        if ISfilename != False:
+            axes[i].plot([CMEstart, CMEstart], [1.3*mins[i], 1.3*maxs[i]], 'k--', linewidth=2)
+            axes[i].plot([CMEend, CMEend], [1.3*mins[i], 1.3*maxs[i]], 'k--', linewidth=2)
         axes[i].set_ylim([scl*mins[i], scl*maxs[i]])
     axes[0].set_xlim([plotstart, plotend])
     
@@ -467,7 +468,7 @@ def run_case(inps):
     CMEstart = inps[12]
     CMEend = inps[13]
     
-    global Bout, tARR
+    global Bout, tARR, Kp
     # run the simulation    
     Bout, tARR, isHit = update_insitu(inps)
     
@@ -525,13 +526,15 @@ def save_plot(inps, Bout, tARR):
     f1.write('Indices: '+ str(show_indices))
     f1.close()
     if Save_Profile == True:
-        f1 = open(my_name+'.dat', 'w')
         if canprint: print('saving profile') 
-        for i in range(len(tARR)):
-            f1.write('%10.5f %10.4f %10.4f %10.4f \n' % (tARR[i], -Bout[0][i], -Bout[1][i], Bout[2][i]))
+        f1 = open(my_name+'.dat', 'w')
+        if not show_indices:
+            for i in range(len(tARR)):
+                f1.write('%10.5f %10.4f %10.4f %10.4f \n' % (tARR[i], Bout[0][i], Bout[1][i], Bout[2][i]))
+        else:
+            for i in range(len(tARR)):
+                f1.write('%10.5f %10.4f %10.4f %10.4f  %10.4f \n' % (tARR[i], Bout[0][i], Bout[1][i], Bout[2][i], Kp[i]))
         f1.close()
-        # add a Kp file? or just within other?    
-    
 
 def get_inputs(inputs):
     # take a file with unsorted input values and return a dictionary.
@@ -575,14 +578,16 @@ def setupOptions(input_values):
 
     # Pop up a GUI or just save a file
     global Launch_GUI
-    Launch_GUI = False
+    Launch_GUI = True
     if 'Launch_GUI' in input_values:
-       if input_values['Launch_GUI'] == 'True': Launch_GUI = True
+       if input_values['Launch_GUI'] == 'False': Launch_GUI = False
        
     global NoPlot
     NoPlot = False
     if 'No_Plot' in input_values:
         if input_values['No_Plot'] == 'True': NoPlot = True
+    # not allowed to launch a GUI without a plot
+    if Launch_GUI == True: NoPlot = False
    
     # Option to print a file with simulation results
     global Save_Profile
@@ -896,4 +901,4 @@ def runFIDO():
     else:
     	save_plot(inps, Bout, tARR)
 
-#runFIDO()
+runFIDO()
