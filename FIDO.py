@@ -231,8 +231,8 @@ def update_insitu(inps):
             temp2 = roty(temp, CMElat - FFlat) 
             BSC = rotz(temp2, CMElon - FFlon)
             #print minb/CME_crossrad, thetaT, thetaP, Btor, Bpol, BSC
-            obsBx.append(BSC[0])
-            obsBy.append(BSC[1])
+            obsBx.append(-BSC[0])
+            obsBy.append(-BSC[1])
             obsBz.append(BSC[2])
             tARR.append(t/3600.)
 
@@ -261,7 +261,8 @@ def update_insitu(inps):
         
     return Bout, tARR, isHit
 
-def reScale(Bout, tARR, CMEstart, CMEend):       
+def reScale(Bout, tARR, CMEstart, CMEend):  
+    global d_Btot     
     obsB = Bout[3] 
     CMEmid    = 0.5 * (CMEstart + CMEend)
     avg_obs_B = np.mean(d_Btot[np.where(np.abs(d_tUN - CMEmid) < 2./24.)])
@@ -312,35 +313,40 @@ def pullGUIvals():
             flagged = True
     return inps, flagged
         
+def hourify(tARR, vecin):
+    # assume input is in days, will cut off anything before t=0
+    newt = tARR*24.
+    maxt = int((newt[-1]))
+    vecout = np.zeros(maxt)
+    for i in range(maxt):
+        ishere = len(newt[abs(newt - (i+.5))  <= 0.5]) > 0
+        if ishere:
+            vecout[i] =  np.mean(vecin[abs(newt - (i+.5))  <= 0.5])
+    return vecout
+
 def calc_score(Bout, tARR, CMEstart, CMEend):
-    maxt = int(24*(CMEend-CMEstart))# -1
-    FIDO_hrt  = np.zeros(maxt)
-    FIDO_hrBx = np.zeros(maxt)
-    FIDO_hrBy = np.zeros(maxt)
-    FIDO_hrBz = np.zeros(maxt)
-    ACE_hrBx = np.zeros(maxt)
-    ACE_hrBy = np.zeros(maxt)
-    ACE_hrBz = np.zeros(maxt)
-    
-    ACE_t = (d_tUN - CMEstart) * 24
+
+    #ACE_t = (d_tUN - CMEstart) * 24
     FIDO_hr = (tARR - tARR[0]) *24
     # unpack Bs
     obsBx = Bout[0]
     obsBy = Bout[1]
     obsBz = Bout[2]
-    # make hourly averages
-    for i in range(maxt):
-        ishere = len(FIDO_hr[abs(FIDO_hr - (i+.5))  <= 0.5]) > 0
-        if ishere:
-            FIDO_hrt[i]  =  np.mean(FIDO_hr[abs(FIDO_hr - (i+.5))  <= 0.5])
-            FIDO_hrBx[i] =  np.mean(-obsBx[abs(FIDO_hr - (i+.5))  <= 0.5])
-            FIDO_hrBy[i] =  np.mean(-obsBy[abs(FIDO_hr - (i+.5))  <= 0.5])
-            FIDO_hrBz[i] =  np.mean(obsBz[abs(FIDO_hr - (i+.5))  <= 0.5])
-        if len(d_Bx[abs(ACE_t - (i+.5))  <= 0.5]) > 0:
-            ACE_hrBx[i]  =  np.mean(d_Bx[abs(ACE_t - (i+.5))  <= 0.5])
-            ACE_hrBy[i]  =  np.mean(d_By[abs(ACE_t - (i+.5))  <= 0.5])
-            ACE_hrBz[i]  =  np.mean(d_Bz[abs(ACE_t - (i+.5))  <= 0.5])
-
+    
+    # covert to hourly averages
+    FIDO_hrt = hourify(tARR-CMEstart, FIDO_hr)
+    FIDO_hrBx = hourify(tARR-CMEstart, obsBx)
+    FIDO_hrBy = hourify(tARR-CMEstart, obsBy)
+    FIDO_hrBz = hourify(tARR-CMEstart, obsBz)
+    ACE_hrBx = hourify(d_tUN-CMEstart, d_Bx)
+    ACE_hrBy = hourify(d_tUN-CMEstart, d_By)
+    ACE_hrBz = hourify(d_tUN-CMEstart, d_Bz)
+    
+    # take same portion of ACE as have for CME
+    ACE_hrBx = ACE_hrBx[:len(FIDO_hrBx)]
+    ACE_hrBy = ACE_hrBy[:len(FIDO_hrBx)]
+    ACE_hrBz = ACE_hrBz[:len(FIDO_hrBx)]    
+    
     # determine total avg B at hourly intervals
     ACE_hrB = np.sqrt(ACE_hrBx**2 + ACE_hrBy**2 + ACE_hrBz**2)
     errX = np.abs((FIDO_hrBx[np.where(ACE_hrBx!=0)] - ACE_hrBx[np.where(ACE_hrBx!=0)])) / np.mean(ACE_hrB[np.where(ACE_hrBx!=0)])
@@ -398,7 +404,7 @@ def update_fig(Bout, tARR, scores, axes, hasData, isHit, CMEstart, CMEend):
             maxs[i] = np.max(Bobs[i])
             plotstart, plotend = np.min(d_tUN), np.max(d_tUN)
     if isHit:
-        Bsim = [Bout[3], -Bout[0], -Bout[1], Bout[2]]
+        Bsim = [Bout[3], Bout[0], Bout[1], Bout[2]]
         for i in range(4):
             axes[i].plot(tARR, Bsim[i], 'r', linewidth=4)
             if mins[i] > np.min(Bsim[i]): mins[i] = np.min(Bsim[i])
@@ -873,9 +879,6 @@ def runFIDO():
     if not NoPlot:
         global axes
         fig, axes = setupFigure()
-        # for now unpack until fix rest of code
-        #global ax2,ax3,ax4,ax5,ax6
-        #ax2,ax3,ax4,ax5,ax6 = axes[0],axes[1],axes[2],axes[3],axes[4]
     
     checkStartStop(inps)
     if ISfilename!=False: setupObsData(inps)    
@@ -893,4 +896,4 @@ def runFIDO():
     else:
     	save_plot(inps, Bout, tARR)
 
-runFIDO()
+#runFIDO()
