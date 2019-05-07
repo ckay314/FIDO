@@ -427,7 +427,7 @@ def update_fig(Bout, tARR, scores, axes, hasData, isHit, CMEstart, CMEend):
     axes[0].set_xlim([plotstart, plotend])
     
     # add scores on the figure  
-    if scores[0] != 9999:  
+    if (scores[0] != 9999) and (plotScores):  
         axes[0].annotate('%0.2f'%(scores[3]), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
         axes[1].annotate('%0.2f'%(scores[0]), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')
         axes[2].annotate('%0.2f'%(scores[1]), xy=(1, 0), color='r', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
@@ -443,32 +443,71 @@ def update_fig(Bout, tARR, scores, axes, hasData, isHit, CMEstart, CMEend):
     axes[3].set_ylabel('B$_z$ (nT)')
     plt.subplots_adjust(right=0.8, wspace=0.001, hspace=0.25, bottom=0.12)
     if not show_indices: axes[3].set_xlabel('Day of Year')
-    plt.subplots_adjust(top=0.94)
-    plt.gcf().canvas.draw()
-    
     
 def plot_Kp(BoutGSM, Kp, tARR, axes, CMEstart, CMEend):
-    axes[1].plot(tARR, BoutGSM[0], 'b--', linewidth=4, zorder=0)
-    axes[2].plot(tARR, BoutGSM[1], 'b--', linewidth=4, zorder=0)
-    axes[3].plot(tARR, BoutGSM[2], 'b--', linewidth=4, zorder=0)
-    axes[4].plot(tARR, Kp, 'b', linewidth=4)
-    axes[4].plot([CMEstart, CMEstart], [0, 2+np.max(Kp)], 'k--', linewidth=2)
-    axes[4].plot([CMEend, CMEend], [0, 2+np.max(Kp)], 'k--', linewidth=2)
-    axes[4].set_ylim([0, np.max(Kp)+2])
+    #axes[1].plot(tARR, BoutGSM[0], 'b--', linewidth=4, zorder=0)
+    #axes[2].plot(tARR, BoutGSM[1], 'b--', linewidth=4, zorder=0)
+    #axes[3].plot(tARR, BoutGSM[2], 'b--', linewidth=4, zorder=0)
+    axes[4].plot(tARR, Kp, 'g', linewidth=4)
+    axes[4].plot([CMEstart, CMEstart], [0, 9999], 'k--', linewidth=2)
+    axes[4].plot([CMEend, CMEend], [0, 9999], 'k--', linewidth=2)
+    axes[4].set_ylim([0, 10])
     plt.subplots_adjust(hspace=0.05)
     setp(axes[3].get_xticklabels(), visible=False)
     axes[4].set_xlabel('Day of Year')
     axes[4].set_ylabel('Kp Index')
+    
+def plotObsKp(Kpdate, obsKp, axes):
+    axes[4].plot(Kpdate, obsKp, 'k', linewidth=3)
+
+def finish_plot():
     plt.tight_layout()
     plt.subplots_adjust(top=0.94)
     plt.gcf().canvas.draw()
     
+def calc_jump(CMEstart, shinps):
+    tobs = shinps[0]
+    tSh = CMEstart-shinps[1]/24.
+    # determine the upstream magnitude
+    global upDur
+    upDur = 2./24. # how long upstream to used to determine B?
+    sheathidxs = np.where(np.abs(d_tUN - tSh+upDur/2.)<upDur/2.)
+    stime = d_tUN[sheathidxs]
+    upB = np.array([np.mean(d_Btot[sheathidxs]), np.mean(d_Bx[sheathidxs]), np.mean(d_By[sheathidxs]), np.mean(d_Bz[sheathidxs])])
+    compB = upB * shinps[2]
+    compB[1] = upB[1] # set Bx to no increase
+    compB[0] = np.sqrt(compB[1]**2 + compB[2]**2 + compB[3]**2)
+    return [[upB[i],compB[i]] for i in range(4)]
+
+def make_sheath(jumpvec, Bout, CMEstart, shinps):
+    # determine initial flux rope vector
+    iFRvec = [Bout[3][0], Bout[0][0], Bout[1][0], Bout[2][0]]
+    tSheath = np.linspace(CMEstart-shinps[1]/24.,CMEstart,20)
+    Bsheath = [[],[],[],[]]
+    for i in range(4):
+        slope = (iFRvec[i]-jumpvec[i][1])/(tSheath[-1]-tSheath[0])
+        Bsheath[i] = jumpvec[i][1]+slope*(tSheath-tSheath[0]) 
+    return tSheath, Bsheath
+     
     
-def run_case(inps):
+def plot_sheath(shinps, tsheath, sheathB, axes, scores):
+    for i in range(4):
+        # plot arbitrary big enough y values since use lim elsewhere
+        axes[i].plot([shinps[0],shinps[0]],[-300,300],'k--', linewidth=2)
+        axes[i].plot(tsheath,sheathB[i],'b', linewidth=4)
+    if show_indices:
+        axes[4].plot([shinps[0],shinps[0]],[-300,300],'k--', linewidth=2)
+    if plotScores:
+        axes[0].annotate('%0.2f'%(scores[3]), xy=(.1, 0), color='b', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
+        axes[1].annotate('%0.2f'%(scores[0]), xy=(.1, 0), color='b', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')
+        axes[2].annotate('%0.2f'%(scores[1]), xy=(.1, 0), color='b', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
+        axes[3].annotate('%0.2f'%(scores[2]), xy=(.1, 0), color='b', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')
+    
+def run_case(inps, shinps):
     CMEstart = inps[12]
     CMEend = inps[13]
     
-    global Bout, tARR, Kp
+    global Bout, tARR, Kp, tsheath, sheathB, sheathKp
     # run the simulation    
     Bout, tARR, isHit = update_insitu(inps)
     
@@ -483,8 +522,22 @@ def run_case(inps):
             if canprint: print('score '+ str(scores[3])) 
         else:
             scores = [9999, 9999, 9999, 9999]
+        # add sheath if desired
+        if hasSheath:
+            jumpvec = calc_jump(CMEstart, shinps)
+            tsheath, sheathB = make_sheath(jumpvec, Bout, CMEstart, shinps)  
+            # add tshift to sheath
+            tsheath += inps[11]/24.
+            sheath_scores = calc_score([sheathB[1],sheathB[2],sheathB[3]], tsheath, CMEstart-shinps[1]/24.,CMEstart)  
+        else:
+            tsheath = []
+            sheathB = [[],[],[],[]]
         # Calculate Kp
         if show_indices:
+            if hasSheath:
+                sheathKp, sheathBoutGSM = calc_indices([sheathB[1],sheathB[2],sheathB[3],sheathB[0]], CMEstart-shinps[1]/24., shinps[3])
+            else:
+                sheathKp = []
             Kp, BoutGSM = calc_indices(Bout, CMEstart, inps[8])
     else:
         if canprint: print ('No impact expected')
@@ -492,10 +545,18 @@ def run_case(inps):
     if not NoPlot:
         update_fig(Bout, tARR, scores, axes, canScore, isHit, CMEstart, CMEend)
         if show_indices:
-            plot_Kp(BoutGSM, Kp, tARR, axes, CMEstart, CMEend)        
+            if Kpfilename != False:
+                plotObsKp(Kpdate, obsKp, axes)
+            plot_Kp(BoutGSM, Kp, tARR, axes, CMEstart, CMEend) 
+            if hasSheath:
+                  plot_Kp(sheathBoutGSM, sheathKp, tsheath, axes, shinps[0], CMEstart) 
+        if hasSheath:
+            plot_sheath(shinps, tsheath, sheathB, axes, sheath_scores) 
+        finish_plot()  
+        
     return Bout, tARR
 
-def save_plot(inps, Bout, tARR):
+def save_plot(inps, Bout, tARR, shinps, tsheath, Bsheath, sheathKp):
     # unpack the params
     FFlat, FFlon0, CMElat, CMElon, origCMEtilt, CMEAW, CMESRA, CMESRB, CMEvr, CMEB0, CMEH, tshift, CMEstart, CMEend = inps[0], inps[1], inps[2], inps[3], inps[4], inps[5], inps[6], inps[7], inps[8], inps[9], inps[10], inps[11], inps[12], inps[13]
     if canprint: print('saving as '+my_name)
@@ -508,30 +569,54 @@ def save_plot(inps, Bout, tARR):
     f1.write('%-13s %8.2f \n' % ('CME_tilt: ', origCMEtilt))
     f1.write('%-13s %8.2f \n' % ('CME_AW: ', CMEAW))
     f1.write('%-13s %8.2f \n' % ('CME_Ashape: ', CMESRA))
-    f1.write('%-13s %8.2f \n' % ('CME_Bshape: ', CMESRB))
+    f1.write('%-13s %8.3f \n' % ('CME_Bshape: ', CMESRB))
     f1.write('%-13s %8.2f \n' % ('CME_vr: ', CMEvr))
     f1.write('%-13s %8.2f \n' % ('CME_B0: ', CMEB0))
     f1.write('%-13s %8.2f \n' % ('CME_pol: ', CMEH))
-    f1.write('%-13s %8.2f \n' % ('tshift: ', tshift))
     f1.write('%-13s %8.2f \n' % ('Sat_lat: ', FFlat))
     f1.write('%-13s %8.2f \n' % ('Sat_lon: ', FFlon0))
     f1.write('%-13s %8.2f \n' % ('CME_start: ', CMEstart))
     f1.write('%-13s %8.2f \n' % ('CME_stop: ', CMEend))
     f1.write('Launch_GUI: '+ str(Launch_GUI)+  '\n')
-    f1.write('No_Plot: '+ str(NoPlot)+  '\n')
     f1.write('Autonormalize: '+ str(Autonormalize)+  '\n')
     f1.write('Save_Profile: '+ str(Save_Profile)+  '\n')
     f1.write('Expansion_Model: '+ expansion_model+  '\n')
-    f1.write('Silent: '+ str(not canprint)+ '\n')
-    f1.write('Indices: '+ str(show_indices))
+    # don't print settings for extra features if not used
+    # to avoid confusion about unnecessary things
+    if 'tshift' in input_values:
+        f1.write('%-13s %8.2f \n' % ('tshift: ', tshift))
+    if 'PlotScores' in input_values:
+        f1.write('PlotScores: ' + str(plotScores)+'\n')
+    if 'No_Plot' in input_values:
+        f1.write('No_Plot: '+ str(NoPlot)+  '\n')
+    if 'Silent' in input_values:
+        f1.write('Silent: '+ str(not canprint)+ '\n')
+    if 'Indices' in input_values:
+        f1.write('Indices: '+ str(show_indices)+'\n')
+    if hasSheath:
+        f1.write('Add_Sheath: True \n')
+        f1.write('Sheath_start: ' + str(shinps[0]) + '\n')
+        f1.write('Sheath_time: ' + str(shinps[1]) + '\n')
+        f1.write('Compression: ' + str(shinps[2])+ '\n')
+        if Kpfilename != False:
+            f1.write('ObsKpFile: ' + Kpfilename + '\n')
+    else:
+        if 'Add_Sheath' in input_values:
+            f1.write('Add_Sheath: False' + '\n')
     f1.close()
     if Save_Profile == True:
         if canprint: print('saving profile') 
         f1 = open(my_name+'.dat', 'w')
         if not show_indices:
+            if hasSheath:
+                for i in range(len(tsheath)):
+                    f1.write('%10.5f %10.4f %10.4f %10.4f \n' % (tsheath[i], sheathB[1][i], sheathB[2][i], sheathB[3][i]))
             for i in range(len(tARR)):
                 f1.write('%10.5f %10.4f %10.4f %10.4f \n' % (tARR[i], Bout[0][i], Bout[1][i], Bout[2][i]))
         else:
+            if hasSheath:
+                for i in range(len(tsheath)):
+                    f1.write('%10.5f %10.4f %10.4f %10.4f  %10.4f \n' % (tsheath[i], sheathB[1][i], sheathB[2][i], sheathB[3][i], sheathKp[i]))    
             for i in range(len(tARR)):
                 f1.write('%10.5f %10.4f %10.4f %10.4f  %10.4f \n' % (tARR[i], Bout[0][i], Bout[1][i], Bout[2][i], Kp[i]))
         f1.close()
@@ -539,7 +624,7 @@ def save_plot(inps, Bout, tARR):
 def get_inputs(inputs):
     # take a file with unsorted input values and return a dictionary.
     # variable names have to match their names below
-    possible_vars = ['insitufile', 'Sat_lat', 'Sat_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'Autonormalize', 'Launch_GUI', 'Save_Profile', 'Expansion_Model', 'No_Plot', 'Silent', 'Indices']
+    possible_vars = ['insitufile', 'Sat_lat', 'Sat_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'Autonormalize', 'Launch_GUI', 'Save_Profile', 'Expansion_Model', 'No_Plot', 'Silent', 'Indices', 'Add_Sheath', 'Sheath_start', 'Sheath_duration', 'Compression', 'Sheath_v', 'ObsKpFile', 'PlotScores']
     
     # if matches add to dictionary
     input_values = {}
@@ -548,7 +633,6 @@ def get_inputs(inputs):
         if temp[0][:-1] in possible_vars:
             input_values[temp[0][:-1]] = temp[1]
     return input_values
-
 
 def readinputfile():
     # Get the CME number
@@ -619,6 +703,20 @@ def setupOptions(input_values):
         if input_values['Indices'] == 'True':
             show_indices = True
             
+    # Determine if we are adding a sheath
+    global hasSheath
+    hasSheath = False
+    if 'Add_Sheath' in input_values:
+        if input_values['Add_Sheath'] == 'True':
+            hasSheath = True
+    
+    # Determine if we want to add scores on the figure itself
+    global plotScores
+    plotScores = True
+    if 'PlotScores' in input_values:
+        if input_values['PlotScores'] == 'False':
+            plotScores = False        
+                
     # Get in situ filename
     global ISfilename, canScore
     ISfilename = False
@@ -627,6 +725,13 @@ def setupOptions(input_values):
         if input_values['insitufile'] != 'NONE':
             ISfilename = input_values['insitufile']
             canScore = True
+            
+    # Get Kp filename  
+    global Kpfilename      
+    Kpfilename = False
+    if show_indices:
+        if 'ObsKpFile' in input_values:
+            Kpfilename = input_values['ObsKpFile']
     
 def getInps(input_values):
     # Set sim params to default, replace with any given values
@@ -651,7 +756,21 @@ def getInps(input_values):
     if 'CME_stop' in input_values: inps[13] = float(input_values['CME_stop'])
     return inps
 
-    
+def getSheathInps(input_values):
+    sheathTime = 11.9 # default in hours, avg of paper vales
+    compression = 2.0 # no justifcation for this default right now
+    sheathv     = 500. # again a random default
+    sheathStart = float(input_values['CME_start']) - sheathTime/24.
+    if 'Sheath_start' in input_values:
+        sheathStart = float(input_values['Sheath_start'])
+    if 'Sheath_time' in input_values:
+        sheathTime = float(input_values['Sheath_time'])/24.
+    if 'Compression' in input_values:
+        compression = float(input_values['Compression'])
+    if 'Sheath_v' in input_values:
+        sheathv = float(input_values['Sheath_v'])
+    return [sheathStart, sheathTime, compression, sheathv]
+
 def setupFigure():
     fig2 = plt.figure()
     # set up the panels of the figure depending on whether we 
@@ -680,7 +799,7 @@ def setupFigure():
     plt.tight_layout()
     return fig2, axes
 
-def setupGUI(root, fig, axes, inps):
+def setupGUI(root, fig, axes, inps, shinps):
     # Add fig to GUI canvas
     canvas = FigureCanvasTkAgg(fig, master=root)
     canvas.get_tk_widget().grid(row=0, column=2, rowspan=30) #.grid(row=0,column=0)
@@ -770,7 +889,7 @@ def setupGUI(root, fig, axes, inps):
     eR2.grid(column=4, row=12)
 
     Label(root, text='Save Plot', bg='gray75').grid(column=3,row=16, columnspan=1)
-    print_button = Button(root, bg='black', command = lambda: save_plot(inps, Bout, tARR))
+    print_button = Button(root, bg='black', command = lambda: save_plot(inps, Bout, tARR, shinps, tsheath, sheathB, sheathKp))
     print_button.grid(row=17,column=3, columnspan=1)
 
     Label(root, text='Quit', bg='gray75').grid(column=4,row=16, columnspan=1)
@@ -800,19 +919,20 @@ def setupGUI(root, fig, axes, inps):
 def rerun():
     newinps, flagged = pullGUIvals()
     if not flagged: 
-        checkStartStop(newinps)
-        run_case(newinps)
+        checkStartStop(newinps, shinps)
+        run_case(newinps, shinps)
     else:
         print('Fix CME start/stop to run')
     
-
-def checkStartStop(inps):
+def checkStartStop(inps, shinps):
     global CMEmid, plotstart, plotend
     CMEstart, CMEend = inps[12], inps[13]
     pad = 3
     plotstart = 0
     if CMEstart != 0:
-        plotstart = CMEstart - pad/24.
+        plotstart = CMEstart - pad/24. 
+    if hasSheath:
+        plotstart = shinps[0] - pad/24.
     if (CMEend == 0) and  canprint:
         print('!!!Have CME start but not stop!!!')
         print('!!!Defaulting to duration of a day!!!')
@@ -822,7 +942,6 @@ def checkStartStop(inps):
         inps[13] = CMEend
     plotend   = CMEend + pad/24.
     
-
 def setupObsData(inps):
     # see if we have IS and start/stop -> can calc score
     # otherwise fix so will plot and flag not to score
@@ -863,15 +982,32 @@ def setupObsData(inps):
     global avg_obs_B
     avg_obs_B = np.mean(d_Btot[np.where(np.abs(d_tUN - CMEmid) < 2./24.)])
 
+def setupKpData(inps,Kpfilename, plotstart, plotend):
+    data2 = np.genfromtxt(Kpfilename, dtype=float)
+    Kpdate = data2[:,1]+data2[:,2]/24.
+    if Kpdate[0] > plotstart:
+        print('Plot start before Kp data start')
+    if Kpdate[-1] < plotend:
+        print('Plot end after Kp data end')
+    obsKp = data2[:,3]/10. # bc OMNI gives Kp*10
+    return Kpdate, obsKp
 
 def runFIDO():
     # read in the text file and grab labeled inputs
+    global input_values
     input_values = readinputfile()
     # set up the general properties (how will FIDO be ran)
     setupOptions(input_values)    
     # set up the actual simulation input params
     inps = getInps(input_values)
-    # set a global with the initial inps values
+    # get sheath values if we are including
+    global shinps
+    shinps = []
+    if hasSheath:
+        shinps = getSheathInps(input_values)
+ 
+    # set a global with the initial inps values, will default
+    # to these if GUI values get changes to bad 
     global inps0
     inps0 = inps
     
@@ -885,15 +1021,23 @@ def runFIDO():
         global axes
         fig, axes = setupFigure()
     
-    checkStartStop(inps)
-    if ISfilename!=False: setupObsData(inps)    
+    global Kpdate, obsKp
+    Kpdate, obsKp = [], []
+    if hasSheath:
+        checkStartStop(inps, shinps)
+    else:
+        checkStartStop(inps, [0.])
+    if ISfilename!=False: 
+        setupObsData(inps)
+    if Kpfilename!=False:    
+        Kpdate, obsKp = setupKpData(inps,Kpfilename, plotstart, plotend)
     
     # set up GUI with figure
     if Launch_GUI:
-        setupGUI(root, fig, axes, inps)
+        setupGUI(root, fig, axes, inps, shinps)
     
     # run the initial conditions
-    Bout, tARR = run_case(inps)
+    Bout, tARR = run_case(inps, shinps)
 
     if Launch_GUI != False:
     	root.mainloop()
