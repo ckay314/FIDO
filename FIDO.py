@@ -932,7 +932,7 @@ def checkStartStop(inps, shinps):
     if CMEstart != 0:
         plotstart = CMEstart - pad/24. 
     if hasSheath:
-        plotstart = shinps[0] - pad/24.
+        plotstart = np.min([shinps[0] - pad/24., CMEstart-shinps[1]/24.-pad/24.])
     if (CMEend == 0) and  canprint:
         print('!!!Have CME start but not stop!!!')
         print('!!!Defaulting to duration of a day!!!')
