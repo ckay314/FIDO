@@ -88,6 +88,9 @@ def isinCME(vec_in, CME_shape):
     zFR = CME_shape[3] * np.sin(thetas)
     dists2 = (vec_in[0] - xFR)**2 + vec_in[1]**2 + (vec_in[2] - zFR)**2
     myb2 = np.min(dists2)
+    #print xFR
+    #print zFR
+    #print potato
     minidxs = np.where(dists2 == myb2)
     # unwrap
     minidx = minidxs[0]
@@ -131,6 +134,8 @@ def isinCME(vec_in, CME_shape):
             if vec_in[0] < (xFR2[minidx] ):	
                 if vec_in[1] > 0: mythetaP = math.pi - mythetaP
                 else: mythetaP = -math.pi - mythetaP
+            if np.abs(mythetaT) > 3.14159/2.:
+                return -9999, -9999, -9999., -9999, -9999    
         except:
             pass
     return myb, mythetaT, mythetaP, 0, CME_crossrad
@@ -149,11 +154,15 @@ def update_insitu(inps):
     FFlat, FFlon0, CMElat, CMElon, origCMEtilt, CMEAW, CMESRA, CMESRB, CMEvr, CMEB0, CMEH, tshift, CMEstart, CMEend = inps[0], inps[1], inps[2], inps[3], inps[4], inps[5], inps[6], inps[7], inps[8], inps[9], inps[10], inps[11], inps[12], inps[13]
     # code written orig for tilt counterclockwise from west but take input as clockwise
     # from north to match observations now
-    if origCMEtilt >=-90:
-        CMEtilt = 90 - origCMEtilt
-    else:
-        CMEtilt = -180 - origCMEtilt
-    
+    # force tilt to be positive
+    origCMEtilt = (origCMEtilt +3600)%360.
+    CMEtilt = 90 - origCMEtilt
+    # old version
+    #if origCMEtilt >=-90:
+    #    CMEtilt = 90 - origCMEtilt
+    #else:
+    #    CMEtilt = -180 - origCMEtilt
+            
     # determine the CME shape
     CME_shape = np.zeros(4)
     # set up CME shape as [d, a, b, c]
@@ -161,12 +170,11 @@ def update_insitu(inps):
     if np.abs(CMEtilt) < 1e-3: 
         CMEtilt = 1e-3
     dtorang = (CMElon - FFlon0) / np.sin(CMEtilt * dtor) * dtor
-    CMEnose = 215. / np.sqrt((1 - (CMESRA + CMESRB) * shapeC * (1. - np.cos(dtorang)))**2 + (1 + CMESRB)**2 * shapeC**2 * np.sin(dtorang)**2)  - 10.
+    CMEnose = 213.# / np.sqrt((1 - (CMESRA + CMESRB) * shapeC * (1. - np.cos(dtorang)))**2 + (1 + CMESRB)**2 * shapeC**2 * np.sin(dtorang)**2)  - 10.
     CME_shape[3] = CMEnose * shapeC
     CME_shape[1] = CME_shape[3] * CMESRA
     CME_shape[2] = CME_shape[3] * CMESRB 
-    CME_shape[0] = CMEnose - CME_shape[1] - CME_shape[2]
-      
+    CME_shape[0] = CMEnose - CME_shape[1] - CME_shape[2]  
     # set up arrays to hold values over the spacecraft path
     obsBx = []
     obsBy = []
@@ -187,7 +195,7 @@ def update_insitu(inps):
     while t < tmax:  
 	    # convert to FIDO position to Cartesian in loop to include Elon change
 	    # get Sun xyz position
-        FF_sunxyz = SPH2CART([215, FFlat, FFlon])
+        FF_sunxyz = SPH2CART([213, FFlat, FFlon])
 	    # rotate to CMEcoord system
         temp = rotz(FF_sunxyz, -CMElon)
         temp2 = roty(temp, CMElat)
@@ -203,7 +211,7 @@ def update_insitu(inps):
         # check to see if the flyer is currently in the CME
 	    # if so, get its position in CME torus coords 
         minb, thetaT, thetaP, flagit, CME_crossrad = isinCME(FF_CMExyz, CME_shape)
-	    # need to check that thetaP doesn't jump as it occasionally will
+        # need to check that thetaP doesn't jump as it occasionally will
         if flagit != -9999:
 	    # define it the first time its used
             if thetaPprev==-42: 
@@ -212,16 +220,16 @@ def update_insitu(inps):
                 thetaPprev = thetaP
                 # if not set to not expanding then keep shape the same after first contact
                 if expansion_model == 'None': flagExp = True
-            delThetaP = np.abs(thetaP - thetaPprev)
-            if (delThetaP > 0.5) and (np.abs(delThetaP < 3.1)): thetaP = thetaPprev
-            thetaPprev = thetaP
-	    
-        # get the toroidal and poloidal magnetic field
-        Btor = CMEB * jv(0, 2.4 * minb / CME_crossrad)
-        Bpol = CMEB * CMEH * jv(1, 2.4 * minb / CME_crossrad)
-	    # save the magnetic field if in CME
-        if flagit != -9999.:
-            # convert this into CME Cartesian coordinates
+                
+            # this is introducing wonkiness... was originally meant for smoothing jumps in thetaP
+            #delThetaP = np.abs(thetaP - thetaPprev)
+            #if (delThetaP > 0.01) and (np.abs(delThetaP < 3.1)): thetaP = thetaPprev
+            #thetaPprev = thetaP
+            
+            # get the toroidal and poloidal magnetic field
+            Btor = CMEB * jv(0, 2.4 * minb / CME_crossrad)
+            Bpol = CMEB * CMEH * jv(1, 2.4 * minb / CME_crossrad)
+	        # convert this into CME Cartesian coordinates
             tdir, pdir = getBvector(CME_shape, minb, thetaT, thetaP)
             Bt_vec = Btor * tdir
             Bp_vec = Bpol * pdir
@@ -230,11 +238,13 @@ def update_insitu(inps):
             temp = rotx(Btot, -CMEtilt)
             temp2 = roty(temp, CMElat - FFlat) 
             BSC = rotz(temp2, CMElon - FFlon)
-            #print minb/CME_crossrad, thetaT, thetaP, Btor, Bpol, BSC
             obsBx.append(-BSC[0])
             obsBy.append(-BSC[1])
             obsBz.append(BSC[2])
             tARR.append(t/3600.)
+        else:
+            # stop checking if exit CME
+            if thetaPprev != -42: t = tmax+1
 
         # move to next step in simulation
         t += dt
@@ -258,7 +268,6 @@ def update_insitu(inps):
     except:
         isHit = False
     Bout = np.array([obsBx, obsBy, obsBz, obsB])   
-        
     return Bout, tARR, isHit
 
 def reScale(Bout, tARR, CMEstart, CMEend):  
@@ -399,14 +408,15 @@ def update_fig(Bout, tARR, scores, axes, hasData, isHit, CMEstart, CMEend):
     if hasData:
         Bobs = [d_Btot, d_Bx, d_By, d_Bz]
         for i in range(4):
-            axes[i].plot(d_tUN, Bobs[i], 'k', linewidth=4)
+            axes[i].plot(d_tUN, Bobs[i], '#696969', linewidth=4)
             mins[i] = np.min(Bobs[i])
             maxs[i] = np.max(Bobs[i])
             plotstart, plotend = np.min(d_tUN), np.max(d_tUN)
+    cols = ['k', 'k', 'b','r']
     if isHit:
         Bsim = [Bout[3], Bout[0], Bout[1], Bout[2]]
         for i in range(4):
-            axes[i].plot(tARR, Bsim[i], 'r', linewidth=4)
+            axes[i].plot(tARR, Bsim[i], color=cols[i], linewidth=4)
             if mins[i] > np.min(Bsim[i]): mins[i] = np.min(Bsim[i])
             if maxs[i] < np.max(Bsim[i]): maxs[i] = np.max(Bsim[i])
             if not hasData:
@@ -420,11 +430,14 @@ def update_fig(Bout, tARR, scores, axes, hasData, isHit, CMEstart, CMEend):
     # add start/stop lines and set figure limits
     scl = 1.25
     for i in range(4):  
-        if ISfilename != False:
+        if (ISfilename != False):
             axes[i].plot([CMEstart, CMEstart], [1.3*mins[i], 1.3*maxs[i]], 'k--', linewidth=2)
             axes[i].plot([CMEend, CMEend], [1.3*mins[i], 1.3*maxs[i]], 'k--', linewidth=2)
         axes[i].set_ylim([scl*mins[i], scl*maxs[i]])
-    axes[0].set_xlim([plotstart, plotend])
+    try:
+        axes[0].set_xlim([plotstart, plotend])
+    except:
+        axes[0].set_xlim([0,1]) # will fail if have no CME or background data
     
     # add scores on the figure  
     if (scores[0] != 9999) and (plotScores):  
@@ -467,26 +480,52 @@ def finish_plot():
     
 def calc_jump(CMEstart, shinps):
     tobs = shinps[0]
-    tSh = CMEstart-shinps[1]/24.
+    tSh = tobs#CMEstart-shinps[1]/24.
     # determine the upstream magnitude
     global upDur
-    upDur = 2./24. # how long upstream to used to determine B?
-    sheathidxs = np.where(np.abs(d_tUN - tSh+upDur/2.)<upDur/2.)
-    stime = d_tUN[sheathidxs]
+    upDur = 2/24. # how long upstream to used to determine B?
+    sheathidxs = np.where(np.abs(d_tUN - tSh+upDur/2)<upDur/2.)
     upB = np.array([np.mean(d_Btot[sheathidxs]), np.mean(d_Bx[sheathidxs]), np.mean(d_By[sheathidxs]), np.mean(d_Bz[sheathidxs])])
     compB = upB * shinps[2]
-    compB[1] = upB[1] # set Bx to no increase
+    #compB[1] = upB[1] # set Bx to no increase
+    # reset full mag b/c get slight diffs from using means
     compB[0] = np.sqrt(compB[1]**2 + compB[2]**2 + compB[3]**2)
     return [[upB[i],compB[i]] for i in range(4)]
 
-def make_sheath(jumpvec, Bout, CMEstart, shinps):
+def make_sheathOLD(jumpvec, Bout, CMEstart, shinps):
     # determine initial flux rope vector
     iFRvec = [Bout[3][0], Bout[0][0], Bout[1][0], Bout[2][0]]
     tSheath = np.linspace(CMEstart-shinps[1]/24.,CMEstart,20)
     Bsheath = [[],[],[],[]]
+    #print iFRvec/iFRvec[0]
+    #print jumpvec[1][1]/jumpvec[0][1], jumpvec[2][1]/jumpvec[0][1], jumpvec[3][1]/jumpvec[0][1]
     for i in range(4):
         slope = (iFRvec[i]-jumpvec[i][1])/(tSheath[-1]-tSheath[0])
         Bsheath[i] = jumpvec[i][1]+slope*(tSheath-tSheath[0]) 
+    Bsheath[0] = np.sqrt(Bsheath[1]**2+Bsheath[2]**2+Bsheath[3]**2)
+    return tSheath, Bsheath
+
+def make_sheath(jumpvec, Bout, CMEstart, shinps):
+    tSheath = np.linspace(CMEstart-shinps[1]/24.,CMEstart,20)
+    BUsheath = [[],[],[],[]]
+    iFRvec = [Bout[3][0], Bout[0][0], Bout[1][0], Bout[2][0]]
+    iShvec = np.array([jumpvec[0][1],jumpvec[1][1],jumpvec[2][1],jumpvec[3][1]])
+    # calculate unit vectors
+    iShUvec = iShvec / iShvec[0]
+    iFRUvec = iFRvec / iFRvec[0]
+    for i in range(4):
+        slope = (iFRUvec[i]-iShUvec[i])/(tSheath[-1]-tSheath[0])
+        BUsheath[i] = iShUvec[i]+slope*(tSheath-tSheath[0]) 
+    BUsheath[0] = np.sqrt(BUsheath[1]**2 + BUsheath[2]**2 + BUsheath[3]**2)
+    BUsheath = np.array(BUsheath)
+    # want the unit vec to maintain mag of 1, need to scale it
+    scl = 1./ BUsheath[0]
+    Bsheath = BUsheath*scl
+    # get the total B vector
+    Bslope = (iFRvec[0]-iShvec[0])/(tSheath[-1]-tSheath[0])
+    Bmag = iShvec[0] + Bslope*(tSheath-tSheath[0]) 
+    Bsheath *= Bmag
+    #print Bsheath
     return tSheath, Bsheath
      
     
@@ -508,6 +547,13 @@ def run_case(inps, shinps):
     CMEend = inps[13]
     
     global Bout, tARR, Kp, tsheath, sheathB, sheathKp
+    # set up dummys in case not actually calculated
+    Bout = []
+    Kp = []
+    tsheath = []
+    sheathB = []
+    sheathKp = []
+    scores = [9999, 9999, 9999, 9999]
     # run the simulation    
     Bout, tARR, isHit = update_insitu(inps)
     
@@ -520,8 +566,6 @@ def run_case(inps, shinps):
             # Calculate score
             scores = calc_score(Bout, tARR, CMEstart, CMEend)
             if canprint: print('score '+ str(scores[3])) 
-        else:
-            scores = [9999, 9999, 9999, 9999]
         # add sheath if desired
         if hasSheath:
             jumpvec = calc_jump(CMEstart, shinps)
@@ -529,29 +573,27 @@ def run_case(inps, shinps):
             # add tshift to sheath
             tsheath += inps[11]/24.
             sheath_scores = calc_score([sheathB[1],sheathB[2],sheathB[3]], tsheath, CMEstart-shinps[1]/24.,CMEstart)  
-        else:
-            tsheath = []
-            sheathB = [[],[],[],[]]
+            print sheath_scores
         # Calculate Kp
         if show_indices:
             if hasSheath:
                 sheathKp, sheathBoutGSM = calc_indices([sheathB[1],sheathB[2],sheathB[3],sheathB[0]], CMEstart-shinps[1]/24., shinps[3])
-            else:
-                sheathKp = []
             Kp, BoutGSM = calc_indices(Bout, CMEstart, inps[8])
     else:
         if canprint: print ('No impact expected')
-
+        scores = [9999, 9999, 9999, 9999]
+    
     if not NoPlot:
         update_fig(Bout, tARR, scores, axes, canScore, isHit, CMEstart, CMEend)
-        if show_indices:
-            if Kpfilename != False:
-                plotObsKp(Kpdate, obsKp, axes)
-            plot_Kp(BoutGSM, Kp, tARR, axes, CMEstart, CMEend) 
+        if isHit:
+            if show_indices:
+                if Kpfilename != False:
+                    plotObsKp(Kpdate, obsKp, axes)
+                plot_Kp(BoutGSM, Kp, tARR, axes, CMEstart, CMEend) 
+                if hasSheath:
+                      plot_Kp(sheathBoutGSM, sheathKp, tsheath, axes, shinps[0], CMEstart) 
             if hasSheath:
-                  plot_Kp(sheathBoutGSM, sheathKp, tsheath, axes, shinps[0], CMEstart) 
-        if hasSheath:
-            plot_sheath(shinps, tsheath, sheathB, axes, sheath_scores) 
+                plot_sheath(shinps, tsheath, sheathB, axes, sheath_scores) 
         finish_plot()  
         
     return Bout, tARR
@@ -575,8 +617,10 @@ def save_plot(inps, Bout, tARR, shinps, tsheath, Bsheath, sheathKp):
     f1.write('%-13s %8.2f \n' % ('CME_pol: ', CMEH))
     f1.write('%-13s %8.2f \n' % ('Sat_lat: ', FFlat))
     f1.write('%-13s %8.2f \n' % ('Sat_lon: ', FFlon0))
-    f1.write('%-13s %8.2f \n' % ('CME_start: ', CMEstart))
-    f1.write('%-13s %8.2f \n' % ('CME_stop: ', CMEend))
+    # don't save the default values
+    if (CMEstart != 0) and (CMEend !=1):
+        f1.write('%-13s %8.2f \n' % ('CME_start: ', CMEstart))
+        f1.write('%-13s %8.2f \n' % ('CME_stop: ', CMEend))
     f1.write('Launch_GUI: '+ str(Launch_GUI)+  '\n')
     f1.write('Autonormalize: '+ str(Autonormalize)+  '\n')
     f1.write('Save_Profile: '+ str(Save_Profile)+  '\n')
@@ -598,6 +642,7 @@ def save_plot(inps, Bout, tARR, shinps, tsheath, Bsheath, sheathKp):
         f1.write('Sheath_start: ' + str(shinps[0]) + '\n')
         f1.write('Sheath_time: ' + str(shinps[1]) + '\n')
         f1.write('Compression: ' + str(shinps[2])+ '\n')
+        f1.write('Sheath_v: ' + str(shinps[3])+ '\n')
         if Kpfilename != False:
             f1.write('ObsKpFile: ' + Kpfilename + '\n')
     else:
@@ -624,7 +669,7 @@ def save_plot(inps, Bout, tARR, shinps, tsheath, Bsheath, sheathKp):
 def get_inputs(inputs):
     # take a file with unsorted input values and return a dictionary.
     # variable names have to match their names below
-    possible_vars = ['insitufile', 'Sat_lat', 'Sat_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'Autonormalize', 'Launch_GUI', 'Save_Profile', 'Expansion_Model', 'No_Plot', 'Silent', 'Indices', 'Add_Sheath', 'Sheath_start', 'Sheath_duration', 'Compression', 'Sheath_v', 'ObsKpFile', 'PlotScores']
+    possible_vars = ['insitufile', 'Sat_lat', 'Sat_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'Autonormalize', 'Launch_GUI', 'Save_Profile', 'Expansion_Model', 'No_Plot', 'Silent', 'Indices', 'Add_Sheath', 'Sheath_start', 'Sheath_time', 'Compression', 'Sheath_v', 'ObsKpFile', 'PlotScores']
     
     # if matches add to dictionary
     input_values = {}
@@ -764,7 +809,7 @@ def getSheathInps(input_values):
     if 'Sheath_start' in input_values:
         sheathStart = float(input_values['Sheath_start'])
     if 'Sheath_time' in input_values:
-        sheathTime = float(input_values['Sheath_time'])/24.
+        sheathTime = float(input_values['Sheath_time'])
     if 'Compression' in input_values:
         compression = float(input_values['Compression'])
     if 'Sheath_v' in input_values:
@@ -1005,7 +1050,7 @@ def runFIDO():
     shinps = []
     if hasSheath:
         shinps = getSheathInps(input_values)
- 
+     
     # set a global with the initial inps values, will default
     # to these if GUI values get changes to bad 
     global inps0
