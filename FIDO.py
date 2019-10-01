@@ -530,7 +530,6 @@ def make_sheath(jumpvec, Bout, CMEstart, shinps):
     #print Bsheath
     return tSheath, Bsheath
      
-    
 def plot_sheath(shinps, tsheath, sheathB, axes, scores):
     for i in range(4):
         # plot arbitrary big enough y values since use lim elsewhere
@@ -692,6 +691,8 @@ def save_plot(inps, Bout, tARR, shinps, tsheath, Bsheath, sheathKp):
     else:
         if 'Add_Sheath' in input_values:
             f1.write('Add_Sheath: False' + '\n')
+    if doAsym:
+        f1.write('DiP: '+ str(DiP) +'\n')
     f1.close()
     if Save_Profile == True:
         if canprint: print('saving profile') 
