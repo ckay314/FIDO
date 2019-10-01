@@ -2,6 +2,7 @@ import numpy as np
 import math
 import sys
 from scipy.special import jv
+from scipy import integrate
 import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -190,7 +191,7 @@ def update_insitu(inps):
     thetaPprev = -42
     switch = 0
     flagExp = False
-    
+    ImpParam = 9999.
     # start simulation
     while t < tmax:  
 	    # convert to FIDO position to Cartesian in loop to include Elon change
@@ -211,6 +212,7 @@ def update_insitu(inps):
         # check to see if the flyer is currently in the CME
 	    # if so, get its position in CME torus coords 
         minb, thetaT, thetaP, flagit, CME_crossrad = isinCME(FF_CMExyz, CME_shape)
+        if np.abs(minb/CME_crossrad) < ImpParam: ImpParam = np.abs(minb/CME_crossrad)
         # need to check that thetaP doesn't jump as it occasionally will
         if flagit != -9999:
 	    # define it the first time its used
@@ -268,7 +270,7 @@ def update_insitu(inps):
     except:
         isHit = False
     Bout = np.array([obsBx, obsBy, obsBz, obsB])   
-    return Bout, tARR, isHit
+    return Bout, tARR, isHit, ImpParam
 
 def reScale(Bout, tARR, CMEstart, CMEend):  
     global d_Btot     
@@ -542,6 +544,46 @@ def plot_sheath(shinps, tsheath, sheathB, axes, scores):
         axes[2].annotate('%0.2f'%(scores[1]), xy=(.1, 0), color='b', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')    
         axes[3].annotate('%0.2f'%(scores[2]), xy=(.1, 0), color='b', xycoords='axes fraction', fontsize=16, horizontalalignment='right', verticalalignment='bottom')
     
+def addAsym(Bout, tARR, ImpParam):
+    # impact paramter
+    b = ImpParam # for now, need to take as input
+    
+    # define flex point in 0 to 1 coords
+    tc = 0.4 # assuming this for now
+    
+    # determine where flex is in tARR
+    trange = tARR[-1] - tARR[0]
+    flext = tARR[0] + tc * trange
+    flexID = np.max(np.where(tARR < flext))
+    
+    # function for B/B0 as function of t in 0 to 1
+    alpha = lambda x: np.sqrt(jv(0,2.4*np.sqrt(4*(1-b**2)*(x-0.5)**2+b**2))**2 + jv(1,2.4*np.sqrt(4*(1-b**2)*(x-0.5)**2+b**2))**2)
+    
+    # calculate slope of linear front portion
+    atc = alpha(tc)
+    intatc1 = integrate.quad(alpha,tc,1)[0]
+    if DiP <= tc:
+        mB = (-4*atc*DiP + 2*atc*tc + 2*intatc1)/(4*tc*DiP - 2*DiP**2 -tc**2)
+    else:
+        intatcDiP = integrate.quad(alpha,tc,DiP)[0]
+        mB = (2./tc**2) * (intatc1 -2*intatcDiP - tc*atc)
+
+    # get estimate of B0
+    estB0 = Bout[3][flexID]/atc
+
+    # get unit vector for front of CME
+    unit_vec = np.transpose(np.array([Bout[0],Bout[1],Bout[2]])/Bout[3])
+    
+    # readjust magnitude of front of CME
+    Bmag = Bout[3]
+    Bmag[:flexID+1] += (tc-(tARR[:flexID+1]-tARR[0])/trange) * mB * estB0
+    Bout[3] = Bmag
+    
+    # adjust vector components to new mag, no change in dir
+    Bout[:-1] = np.transpose(unit_vec * Bmag.reshape([-1,1]))
+        
+    return Bout
+
 def run_case(inps, shinps):
     CMEstart = inps[12]
     CMEend = inps[13]
@@ -555,10 +597,12 @@ def run_case(inps, shinps):
     sheathKp = []
     scores = [9999, 9999, 9999, 9999]
     # run the simulation    
-    Bout, tARR, isHit = update_insitu(inps)
-    
+    Bout, tARR, isHit, ImpParam = update_insitu(inps)
     # execute extra functions as needed
     if isHit:
+        if doAsym: 
+                Bout = addAsym(Bout, tARR, ImpParam)            
+        
         if ISfilename !=False:
             # Autonormalize
             if Autonormalize==True:
@@ -669,7 +713,7 @@ def save_plot(inps, Bout, tARR, shinps, tsheath, Bsheath, sheathKp):
 def get_inputs(inputs):
     # take a file with unsorted input values and return a dictionary.
     # variable names have to match their names below
-    possible_vars = ['insitufile', 'Sat_lat', 'Sat_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'Autonormalize', 'Launch_GUI', 'Save_Profile', 'Expansion_Model', 'No_Plot', 'Silent', 'Indices', 'Add_Sheath', 'Sheath_start', 'Sheath_time', 'Compression', 'Sheath_v', 'ObsKpFile', 'PlotScores']
+    possible_vars = ['insitufile', 'Sat_lat', 'Sat_lon', 'CME_lat', 'CME_lon', 'CME_tilt', 'CME_AW', 'CME_vr', 'tshift', 'CME_Ashape', 'CME_Bshape', 'CME_B0', 'CME_pol', 'CME_start', 'CME_stop', 'Autonormalize', 'Launch_GUI', 'Save_Profile', 'Expansion_Model', 'No_Plot', 'Silent', 'Indices', 'Add_Sheath', 'Sheath_start', 'Sheath_time', 'Compression', 'Sheath_v', 'ObsKpFile', 'PlotScores', 'DiP']
     
     # if matches add to dictionary
     input_values = {}
@@ -777,6 +821,19 @@ def setupOptions(input_values):
     if show_indices:
         if 'ObsKpFile' in input_values:
             Kpfilename = input_values['ObsKpFile']
+            
+    # Check if given a distortion parameter value
+    # If so include asym
+    global doAsym, DiP
+    doAsym = False
+    DiP = 0.5
+    if 'DiP' in input_values:
+        doAsym = True
+        DiP = float(input_values['DiP'])
+        # check the DiP in [0,1]
+        if np.abs(DiP-0.5) > 0.5:
+            doAsym = False
+            if canprint: print('DiP must be between 0 and 1, cannot add asymmetry. ')
     
 def getInps(input_values):
     # Set sim params to default, replace with any given values
@@ -1042,7 +1099,8 @@ def runFIDO():
     global input_values
     input_values = readinputfile()
     # set up the general properties (how will FIDO be ran)
-    setupOptions(input_values)    
+    setupOptions(input_values)   
+
     # set up the actual simulation input params
     inps = getInps(input_values)
     # get sheath values if we are including
@@ -1088,6 +1146,6 @@ def runFIDO():
     	root.mainloop()
     	root.quit()
     else:
-    	save_plot(inps, Bout, tARR)
+    	save_plot(inps, Bout, tARR, 0, 0, 0, 0)
 
 runFIDO()
