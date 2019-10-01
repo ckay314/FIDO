@@ -1,0 +1,23 @@
+Year ----------------------------------
+Shock Time (frac doy)
+FR Start Time
+FR End Time     from Wind catalog
+B CME
+v CME avg
+v CME exp   ---------------------------
+v upstream
+v downstream
+n upstream
+n downstream  			from CfA
+B upstream
+B downstream
+sound speed upstream
+sound speed downstream
+alfven speed upstream
+alfven speed downstream
+compression
+comp unc  ------------------------------
+dV
+vCME				from RC catalog
+vmax
+Vtransit  ------------------------------
