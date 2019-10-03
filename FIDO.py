@@ -579,7 +579,7 @@ def addAsym(Bout, tARR, ImpParam):
     
     # readjust magnitude of front of CME
     Bmag = Bout[3]
-    Bmag[:flexID+1] += (tc-(tARR[:flexID+1]-tARR[0])/trange) * mB * estB0
+    Bmag[:flexID+1] = (tc-(tARR[:flexID+1]-tARR[0])/trange) * mB * estB0 + Bmag[flexID]
     Bout[3] = Bmag
     
     # adjust vector components to new mag, no change in dir
