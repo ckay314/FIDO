@@ -322,6 +322,10 @@ def pullGUIvals():
         if inps[13] > maxISdate:
             print('CME_end after last in situ time')
             flagged = True
+    if doAsym:
+            global DiP
+            DiP = float(wids[14].get())
+            
     return inps, flagged
         
 def hourify(tARR, vecin):
@@ -952,6 +956,13 @@ def setupGUI(root, fig, axes, inps, shinps):
     Label(root, text='Pol. Direction:', bg='gray75').grid(column=0, row=13)
     e7 = Entry(root, width=10)
     e7.grid(column=1, row=13)
+    
+    # add in dip control if using
+    if doAsym:
+        Label(root, text='DiP:', bg='gray75').grid(column=0, row=15)
+        e7b = Entry(root, width=10)
+        e7b.grid(column=1, row=15)
+        
 
 
     # check button for autonormalizing magnitude
@@ -1014,6 +1025,9 @@ def setupGUI(root, fig, axes, inps, shinps):
     eS1.insert(0, inps[12])
     eS2.insert(0, inps[13])
     wids = [eR1, eR2, e1, e2, e3, e3b, e4, e5, e8, e6, e7, e9, eS1, eS2]
+    if doAsym:
+        e7b.insert(0, DiP)
+        wids = [eR1, eR2, e1, e2, e3, e3b, e4, e5, e8, e6, e7, e9, eS1, eS2, e7b]
 
     Label(root, text='Update Plot', bg='gray75').grid(column=3,row=14, columnspan=2)
     draw_button = Button(root, command = rerun, bg='gray75')
